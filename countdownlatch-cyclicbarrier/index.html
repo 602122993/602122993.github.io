@@ -1,0 +1,538 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=&#34;auto&#34;>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="description" content="CountdownLatch和CyclicBarrier都属于线程同步的工具,不过具体的实现以及使用的情况有所不同,我们先来看看不同的使用情况">
+  <meta name="author" content="翟相壹">
+  <meta name="keywords" content="小阿翟的个人博客">
+  
+  <title>CountdownLatch和CyclicBarrier的区别使用场景与具体实现 - azhai&#39;s blog</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4.0.0/github-markdown.min.css" />
+  <link  rel="stylesheet" href="/lib/hint/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10.7.2/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.css" />
+  
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_kmeydafke9r.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"602122993.gihub.io","root":"/","version":"1.8.11","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand"
+       href="/">&nbsp;<strong>小阿宅的技术博客</strong>&nbsp;</a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" data-toggle="modal" data-target="#modalSearch">&nbsp;<i
+                class="iconfont icon-search"></i>&nbsp;</a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="CountdownLatch和CyclicBarrier的区别使用场景与具体实现">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2019-10-30 15:17" pubdate>
+        2019年10月30日 下午
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      2.3k 字
+    </span>
+  
+
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      30
+       分钟
+    </span>
+  
+
+  
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">CountdownLatch和CyclicBarrier的区别使用场景与具体实现</h1>
+            
+            <div class="markdown-body">
+              <p>CountdownLatch和CyclicBarrier都属于线程同步的工具,不过具体的实现以及使用的情况有所不同,我们先来看看不同的使用情况</p>
+<span id="more"></span>
+<h2 id="CountdownLatch-使用场景"><a href="#CountdownLatch-使用场景" class="headerlink" title="CountdownLatch 使用场景"></a>CountdownLatch 使用场景</h2><p>顾名思义CountdownLatch可以当做一个计数器来使用,比如某线程需要等待其他几个线程都执行过某个时间节点后才能继续执行<br>我们来模拟一个场景,某公司一共有十个人,门卫要等十个人都来上班以后,才可以休息,代码实现如下</p>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><code class="hljs reasonml">public static void main(String<span class="hljs-literal">[]</span> args) &#123;<br>       final CountDownLatch latch = <span class="hljs-keyword">new</span> <span class="hljs-constructor">CountDownLatch(10)</span>;<br>       <span class="hljs-keyword">for</span> (<span class="hljs-built_in">int</span> i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">10</span>; i++) &#123;<br>           <span class="hljs-comment">//lambda中只能只用final的变量</span><br>           final <span class="hljs-built_in">int</span> times = i;<br>           <span class="hljs-keyword">new</span> <span class="hljs-constructor">Thread(()</span> -&gt; &#123;<br>               <span class="hljs-keyword">try</span> &#123;<br>                   <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">System</span>.</span></span>out.println(<span class="hljs-string">&quot;子线程&quot;</span> + <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">Thread</span>.</span></span>current<span class="hljs-constructor">Thread()</span>.get<span class="hljs-constructor">Name()</span> + <span class="hljs-string">&quot;正在赶路&quot;</span>);<br>                   <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">Thread</span>.</span></span>sleep(<span class="hljs-number">1000</span><span class="hljs-operator"> * </span>times);<br>                   <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">System</span>.</span></span>out.println(<span class="hljs-string">&quot;子线程&quot;</span> + <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">Thread</span>.</span></span>current<span class="hljs-constructor">Thread()</span>.get<span class="hljs-constructor">Name()</span> + <span class="hljs-string">&quot;到公司了&quot;</span>);<br>                   <span class="hljs-comment">//调用latch的countDown方法使计数器-1</span><br>                   latch.count<span class="hljs-constructor">Down()</span>;<br>                   <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">System</span>.</span></span>out.println(<span class="hljs-string">&quot;子线程&quot;</span> + <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">Thread</span>.</span></span>current<span class="hljs-constructor">Thread()</span>.get<span class="hljs-constructor">Name()</span> + <span class="hljs-string">&quot;开始工作&quot;</span>);<br>               &#125; catch (InterruptedException e) &#123;<br>                   e.print<span class="hljs-constructor">StackTrace()</span>;<br>               &#125;<br>           &#125;).start<span class="hljs-literal">()</span>;<br>       &#125;<br><br><br>       <span class="hljs-keyword">try</span> &#123;<br>           <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">System</span>.</span></span>out.println(<span class="hljs-string">&quot;门卫等待员工上班中...&quot;</span>);<br>           <span class="hljs-comment">//主线程阻塞等待计数器归零</span><br>           latch.await<span class="hljs-literal">()</span>;<br>           <span class="hljs-module-access"><span class="hljs-module"><span class="hljs-identifier">System</span>.</span></span>out.println(<span class="hljs-string">&quot;员工都来了,门卫去休息了&quot;</span>);<br>       &#125; catch (InterruptedException e) &#123;<br>           e.print<span class="hljs-constructor">StackTrace()</span>;<br>       &#125;<br>   &#125;<br></code></pre></td></tr></table></figure>
+
+<p>运行后结果如下</p>
+<figure class="highlight lasso"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs lasso">子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-0</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-2</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-0</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-0</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-1</span>正在赶路<br>门卫等待员工上班中<span class="hljs-params">...</span><br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-4</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-9</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-5</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-6</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-7</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-8</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-3</span>正在赶路<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-1</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-1</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-2</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-2</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-3</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-3</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-4</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-4</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-5</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-5</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-6</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-6</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-7</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-7</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-8</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-8</span>开始工作<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-9</span>到公司了<br>子线程<span class="hljs-keyword">Thread</span><span class="hljs-number">-9</span>开始工作<br>员工都来了,门卫去休息了<br></code></pre></td></tr></table></figure>
+<p>可以看到子线程并没有因为调用latch.countDown而阻塞,会继续进行该做的工作,只是通知计数器-1,即完成了我们如上说的场景,只需要在所有进程都进行到某一节点后才会执行被阻塞的进程.如果我们想要多个线程在同一时间进行就要用到CyclicBarrier了</p>
+<h2 id="CyclicBarrier-使用场景"><a href="#CyclicBarrier-使用场景" class="headerlink" title="CyclicBarrier 使用场景"></a>CyclicBarrier 使用场景</h2><p>我们重新模拟一个新的场景,就用已经被说烂的跑步场景吧,十名运动员各自准备比赛,需要等待所有运动员都准备好以后,裁判才能说开始然后所有运动员一起跑,代码实现如下</p>
+<figure class="highlight livescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs livescript">public <span class="hljs-keyword">static</span> <span class="hljs-literal">void</span> main(<span class="hljs-built_in">String</span>[] args) &#123;<br>     final CyclicBarrier cyclicBarrier = <span class="hljs-keyword">new</span> CyclicBarrier<span class="hljs-function"><span class="hljs-params">(<span class="hljs-number">10</span>,()-&gt;&#123;</span></span><br><span class="hljs-params"><span class="hljs-function">         System.out.println(<span class="hljs-string">&quot;所有人都准备好了裁判开始了&quot;</span>);</span></span><br><span class="hljs-params"><span class="hljs-function">     &#125;)</span>;</span><br><span class="hljs-function">     <span class="hljs-title">for</span> <span class="hljs-params">(int i = <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">10</span>; i++)</span> &#123;</span><br><span class="hljs-function">         //<span class="hljs-title">lambda</span>中只能只用<span class="hljs-title">final</span>的变量</span><br><span class="hljs-function">         <span class="hljs-title">final</span> <span class="hljs-title">int</span> <span class="hljs-title">times</span> = <span class="hljs-title">i</span>;</span><br><span class="hljs-function">         <span class="hljs-title">new</span> <span class="hljs-title">Thread</span><span class="hljs-params">(() -&gt; &#123;</span></span><br><span class="hljs-params"><span class="hljs-function">             <span class="hljs-keyword">try</span> &#123;</span></span><br><span class="hljs-params"><span class="hljs-function">                 System.out.println(<span class="hljs-string">&quot;子线程&quot;</span> + Thread.currentThread().getName() + <span class="hljs-string">&quot;正在准备&quot;</span>);</span></span><br><span class="hljs-params"><span class="hljs-function">                 Thread.sleep(<span class="hljs-number">1000</span> * times);</span></span><br><span class="hljs-params"><span class="hljs-function">                 System.out.println(<span class="hljs-string">&quot;子线程&quot;</span> + Thread.currentThread().getName() + <span class="hljs-string">&quot;准备好了&quot;</span>);</span></span><br><span class="hljs-params"><span class="hljs-function">                 cyclicBarrier.<span class="hljs-keyword">await</span>();</span></span><br><span class="hljs-params"><span class="hljs-function">                 System.out.println(<span class="hljs-string">&quot;子线程&quot;</span> + Thread.currentThread().getName() + <span class="hljs-string">&quot;开始跑了&quot;</span>);</span></span><br><span class="hljs-params"><span class="hljs-function">             &#125; <span class="hljs-keyword">catch</span> (InterruptedException e) &#123;</span></span><br><span class="hljs-params"><span class="hljs-function">                 e.printStackTrace();</span></span><br><span class="hljs-params"><span class="hljs-function">             &#125; <span class="hljs-keyword">catch</span> (BrokenBarrierException e) &#123;</span></span><br><span class="hljs-params"><span class="hljs-function">                 e.printStackTrace();</span></span><br><span class="hljs-params"><span class="hljs-function">             &#125;</span></span><br><span class="hljs-params"><span class="hljs-function">         &#125;)</span>.<span class="hljs-title">start</span><span class="hljs-params">()</span>;</span><br><span class="hljs-function">     &#125;</span><br><span class="hljs-function"></span><br><span class="hljs-function"></span><br><span class="hljs-function"> &#125;</span><br><span class="hljs-function"></span><br></code></pre></td></tr></table></figure>
+<p>执行结果如下</p>
+<figure class="highlight autohotkey"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><code class="hljs autohotkey">子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">0</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">2</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">1</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">3</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">4</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">0</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">5</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">6</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">7</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">8</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">9</span>正在准备<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">1</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">2</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">3</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">4</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">5</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">6</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">7</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">8</span>准备好了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">9</span>准备好了<br>所有人都准备好了裁判开始了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">9</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">0</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">2</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">1</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">7</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">6</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">5</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">4</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">3</span>开始跑了<br>子线程<span class="hljs-keyword">Thread</span>-<span class="hljs-number">8</span>开始跑了<br></code></pre></td></tr></table></figure>
+<p>可以看到所有线程在其他线程没有准备好之前都在被阻塞中,等到所有线程都准备好了才继续执行<br>我们在创建CyclicBarrier对象时传入了一个方法,当调用CyclicBarrier的await方法后,当前线程会被阻塞等到所有线程都调用了await方法后 调用传入CyclicBarrier的方法,然后让所有的被阻塞的线程一起运行</p>
+<p>应用场景我们说完了,接下来看看两个工具的具体实现</p>
+<h2 id="CountdownLatch-底层实现"><a href="#CountdownLatch-底层实现" class="headerlink" title="CountdownLatch 底层实现"></a>CountdownLatch 底层实现</h2><p>我们先来看看CountdownLatch的构造方法</p>
+<figure class="highlight axapta"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs axapta"><span class="hljs-keyword">public</span> CountDownLatch(<span class="hljs-built_in">int</span> <span class="hljs-keyword">count</span>) &#123;<br>    <span class="hljs-keyword">if</span> (<span class="hljs-keyword">count</span> &lt; <span class="hljs-number">0</span>) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> IllegalArgumentException(<span class="hljs-string">&quot;count &lt; 0&quot;</span>);<br>    <span class="hljs-keyword">this</span>.sync = <span class="hljs-keyword">new</span> Sync(<span class="hljs-keyword">count</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>首先保证了count一定要大于零,然后初始化了一个Sync对象,在看看这个Sync对象是个什么</p>
+<figure class="highlight aspectj"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><code class="hljs aspectj"><span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">Sync</span> <span class="hljs-keyword">extends</span> <span class="hljs-title">AbstractQueuedSynchronizer</span> </span>&#123;<br>        <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">long</span> serialVersionUID = <span class="hljs-number">4982264981922014374</span>L;<br><br>        Sync(<span class="hljs-keyword">int</span> count) &#123;<br>            setState(count);<br>        &#125;<br><br>        <span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">getCount</span><span class="hljs-params">()</span> </span>&#123;<br>            <span class="hljs-function"><span class="hljs-keyword">return</span> <span class="hljs-title">getState</span><span class="hljs-params">()</span></span>;<br>        &#125;<br><br>        <span class="hljs-keyword">protected</span> <span class="hljs-function"><span class="hljs-keyword">int</span> <span class="hljs-title">tryAcquireShared</span><span class="hljs-params">(<span class="hljs-keyword">int</span> acquires)</span> </span>&#123;<br>            <span class="hljs-keyword">return</span> (getState() == <span class="hljs-number">0</span>) ? <span class="hljs-number">1</span> : -1;<br>        &#125;<br><br>        <span class="hljs-keyword">protected</span> <span class="hljs-function"><span class="hljs-keyword">boolean</span> <span class="hljs-title">tryReleaseShared</span><span class="hljs-params">(<span class="hljs-keyword">int</span> releases)</span> </span>&#123;<br>            <span class="hljs-comment">// Decrement count; signal when transition to zero</span><br>            <span class="hljs-keyword">for</span> (;;) &#123;<br>                <span class="hljs-keyword">int</span> c = getState();<br>                <span class="hljs-keyword">if</span> (c == <span class="hljs-number">0</span>)<br>                    <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;<br>                <span class="hljs-keyword">int</span> nextc = c<span class="hljs-number">-1</span>;<br>                <span class="hljs-keyword">if</span> (compareAndSetState(c, nextc))<br>                    <span class="hljs-keyword">return</span> nextc == <span class="hljs-number">0</span>;<br>            &#125;<br>        &#125;<br>    &#125;<br></code></pre></td></tr></table></figure>
+
+<p>Sync是CountdownLatch的静态内部类,继承了AbstractQueuedSynchronizer(即AQS,提供了一种实现阻塞锁和一系列依赖FIFO等待队列的同步器的工具,回头单讲)抽象类, 在Sync的构造方法中,调用了setState方法,可以视作初始化了一个标记来记录当前计数器的数量</p>
+<p>我们来看CountdownLatch的两个核心方法,await和countdown,先来看await</p>
+<figure class="highlight aspectj"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs aspectj"><span class="hljs-keyword">public</span> <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">await</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> InterruptedException </span>&#123;<br>    <span class="hljs-comment">//可以视作将线程阻塞</span><br>    sync.acquireSharedInterruptibly(<span class="hljs-number">1</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>await调用的是AQS的方法,可以视作阻塞线程,具体实现在分析AQS的章节中展开<br>再来看看countdown方法</p>
+<figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs typescript"><span class="hljs-keyword">public</span> <span class="hljs-built_in">void</span> <span class="hljs-function"><span class="hljs-title">countDown</span>(<span class="hljs-params"></span>)</span> &#123;<br>    sync.releaseShared(<span class="hljs-number">1</span>);<br>&#125;<br></code></pre></td></tr></table></figure>
+<p>调用了sync的一个方法,再来看看这个方法的实现</p>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs reasonml">public final boolean release<span class="hljs-constructor">Shared(<span class="hljs-params">int</span> <span class="hljs-params">arg</span>)</span> &#123;<br>     <span class="hljs-keyword">if</span> (<span class="hljs-keyword">try</span><span class="hljs-constructor">ReleaseShared(<span class="hljs-params">arg</span>)</span>) &#123;<br>         <span class="hljs-keyword">do</span><span class="hljs-constructor">ReleaseShared()</span>;<br>         return <span class="hljs-literal">true</span>;<br>     &#125;<br>     return <span class="hljs-literal">false</span>;<br> &#125;<br></code></pre></td></tr></table></figure>
+<p>再来看这个tryReleaseShared方法</p>
+<figure class="highlight reasonml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs reasonml">protected boolean <span class="hljs-keyword">try</span><span class="hljs-constructor">ReleaseShared(<span class="hljs-params">int</span> <span class="hljs-params">releases</span>)</span> &#123;<br>           <span class="hljs-keyword">for</span> (;;) &#123;<br>               <span class="hljs-comment">//获取标记位</span><br>               <span class="hljs-built_in">int</span> c = get<span class="hljs-constructor">State()</span>;<br>               <span class="hljs-keyword">if</span> (c<span class="hljs-operator"> == </span><span class="hljs-number">0</span>)<br>                   return <span class="hljs-literal">false</span>;<br>               <span class="hljs-built_in">int</span> nextc = c-<span class="hljs-number">1</span>;<br>               <span class="hljs-comment">//用cas的方式更新标记位</span><br>               <span class="hljs-keyword">if</span> (compare<span class="hljs-constructor">AndSetState(<span class="hljs-params">c</span>, <span class="hljs-params">nextc</span>)</span>)<br>                   return nextc<span class="hljs-operator"> == </span><span class="hljs-number">0</span>;<br>           &#125;<br>       &#125;<br></code></pre></td></tr></table></figure>
+<p>可以看到在调用tryReleaseShared实际上是将标记位-1并且返回标记位是否为0,如果标记位为0 那么调用的doReleaseShared可以视作将阻塞的线程放行,这样整个的流程就通了</p>
+<h2 id="CyclicBarrier-底层实现"><a href="#CyclicBarrier-底层实现" class="headerlink" title="CyclicBarrier 底层实现"></a>CyclicBarrier 底层实现</h2><p>老规矩先看构造方法</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs csharp">    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-title">CyclicBarrier</span>(<span class="hljs-params"><span class="hljs-built_in">int</span> parties, Runnable barrierAction</span>)</span> &#123;<br>        <span class="hljs-keyword">if</span> (parties &lt;= <span class="hljs-number">0</span>) <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> IllegalArgumentException();<br>        <span class="hljs-keyword">this</span>.parties = parties;<br>        <span class="hljs-keyword">this</span>.count = parties;<br>        <span class="hljs-keyword">this</span>.barrierCommand = barrierAction;<br>    &#125;<br>```    <br>这边传入了两个对象简单的记录了一下存值,我们直接查看一下关键的<span class="hljs-keyword">await</span>方法<br></code></pre></td></tr></table></figure>
+<pre><code>public int await() throws InterruptedException, BrokenBarrierException &#123;
+    try &#123;
+        return dowait(false, 0L);
+    &#125; catch (TimeoutException toe) &#123;
+        throw new Error(toe); // cannot happen
+    &#125;
+&#125;</code></pre><figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><code class="hljs"><br>再来看dowait的实现<br></code></pre></td></tr></table></figure>
+
+
+<pre><code>/** The lock for guarding barrier entry */
+private final ReentrantLock lock = new ReentrantLock();
+/** Condition to wait on until tripped */
+private final Condition trip = lock.newCondition();
+/** 省略部分代码 **/</code></pre><p>private int dowait(boolean timed, long nanos)<br>        throws InterruptedException, BrokenBarrierException,<br>               TimeoutException {<br>        final ReentrantLock lock = this.lock;<br>        lock.lock();<br>        try {<br>            final Generation g = generation;<br>            //判断是否被打断<br>            if (g.broken)<br>                throw new BrokenBarrierException();</p>
+<pre><code>        if (Thread.interrupted()) &#123;
+            breakBarrier();
+            throw new InterruptedException();
+        &#125;
+        //将计数器-1 即在构造方法中赋值的count
+        int index = --count;
+        if (index == 0) &#123;  // tripped
+        //如果所有的线程都执行完毕即count=0时
+            boolean ranAction = false;
+            try &#123;
+                //执行传入的方法
+                final Runnable command = barrierCommand;
+                if (command != null)
+                    command.run();
+                ranAction = true;
+                //唤醒所有线程
+                nextGeneration();
+                return 0;
+            &#125; finally &#123;
+                if (!ranAction)
+                    breakBarrier();
+            &#125;
+        &#125;
+
+        //如果count没有到0那么阻塞当前线程
+        for (;;) &#123;
+            try &#123;
+                if (!timed)
+                    trip.await();
+                else if (nanos &gt; 0L)
+                    nanos = trip.awaitNanos(nanos);
+            &#125; catch (InterruptedException ie) &#123;
+                if (g == generation &amp;&amp; ! g.broken) &#123;
+                    breakBarrier();
+                    throw ie;
+                &#125; else &#123;
+                    // We&apos;re about to finish waiting even if we had not
+                    // been interrupted, so this interrupt is deemed to
+                    // &quot;belong&quot; to subsequent execution.
+                    Thread.currentThread().interrupt();
+                &#125;
+            &#125;
+
+            if (g.broken)
+                throw new BrokenBarrierException();
+
+            if (g != generation)
+                return index;
+
+            if (timed &amp;&amp; nanos &lt;= 0L) &#123;
+                breakBarrier();
+                throw new TimeoutException();
+            &#125;
+        &#125;
+    &#125; finally &#123;
+        lock.unlock();
+    &#125;
+&#125;</code></pre><p>```<br>从代码中可以看到,CyclicBarrier是利用Lock的condition方法来进行线程的阻塞和唤醒,类似Object.wait()和notifyAll()在count不为0时阻塞,在count=0时唤醒所有线程</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>1,CountdownLatch适用于所有线程通过某一点后通知方法,而CyclicBarrier则适合让所有线程在同一点同时执行<br>2,CountdownLatch利用继承AQS的共享锁来进行线程的通知,利用CAS来进行–,而CyclicBarrier则利用ReentrantLock的Condition来阻塞和通知线程</p>
+<p>感谢阅读</p>
+<p>有兴趣可以关注我的个人微信公众号,会定期推送关于Java的技术文章,而且目前不恰饭都是干货哈哈哈哈</p>
+<p><img src="http://images.xiaoazhai.com/qrcode_small.jpg" srcset="/img/loading.gif" lazyload alt="小阿宅Java"></p>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Java/">Java</a>
+                    
+                  </div>
+                
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/next/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">hexo的主题配置和内容美化</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/java-lock/">
+                        <span class="hidden-mobile">用最通俗的语言解释Synchronized原理以及偏向锁,自旋锁,轻量级锁和重量级锁的区别(附面试中涉及到的锁的解释)</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/tocbot@4.12.3/dist/tocbot.min.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4.3.1/anchor.min.js" ></script>
+
+
+
+  <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2.0.8/dist/clipboard.min.js" ></script>
+
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+      typing(title)
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"live2d-widget-model-hijiki"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>

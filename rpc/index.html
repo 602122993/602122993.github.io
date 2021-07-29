@@ -1,0 +1,527 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=&#34;auto&#34;>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="description" content="什么是RPC调用在动手之前，首先要明确rpc调用的概念，RPC（Remote Procedure Call）远程过程调用，简单的理解是一个节点请求另一个节点提供的服务，简单来说就是无感知的调用远程服务的方法
+举个例子，如果在A服务中实现了接口addCount(),进行计数+1，而B服务想调用A服务的这个接口，本地只需要通过函数指针来调用即可，而在两个服务中的调用就可以成为rpc调用">
+  <meta name="author" content="翟相壹">
+  <meta name="keywords" content="小阿翟的个人博客">
+  
+  <title>手把手教你撸一个RPC框架 - azhai&#39;s blog</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4.0.0/github-markdown.min.css" />
+  <link  rel="stylesheet" href="/lib/hint/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10.7.2/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.css" />
+  
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_kmeydafke9r.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"602122993.gihub.io","root":"/","version":"1.8.11","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand"
+       href="/">&nbsp;<strong>小阿宅的技术博客</strong>&nbsp;</a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" data-toggle="modal" data-target="#modalSearch">&nbsp;<i
+                class="iconfont icon-search"></i>&nbsp;</a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="手把手教你撸一个RPC框架">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2020-08-12 17:43" pubdate>
+        2020年8月12日 下午
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      3.5k 字
+    </span>
+  
+
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      51
+       分钟
+    </span>
+  
+
+  
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">手把手教你撸一个RPC框架</h1>
+            
+            <div class="markdown-body">
+              <h2 id="什么是RPC调用"><a href="#什么是RPC调用" class="headerlink" title="什么是RPC调用"></a>什么是RPC调用</h2><p>在动手之前，首先要明确rpc调用的概念，RPC（Remote Procedure Call）远程过程调用，简单的理解是一个节点请求另一个节点提供的服务，简单来说就是无感知的调用远程服务的方法</p>
+<p>举个例子，如果在A服务中实现了接口addCount(),进行计数+1，而B服务想调用A服务的这个接口，本地只需要通过函数指针来调用即可，而在两个服务中的调用就可以成为rpc调用</p>
+<span id="more"></span>
+
+<h2 id="实现RPC调用的流程"><a href="#实现RPC调用的流程" class="headerlink" title="实现RPC调用的流程"></a>实现RPC调用的流程</h2><h3 id="生产者"><a href="#生产者" class="headerlink" title="生产者"></a>生产者</h3><ol>
+<li>扫描所有的提供服务的Service并对应的注册到注册中心中，暴露服务出去，并且在本地根据服务名称缓存服务执行对象。</li>
+<li>开启本地服务接受消费者请求。</li>
+<li>在接收到请求后根据服务名称寻找对应的执行对象，并通过反射的方式调用对应的方法。</li>
+<li>将执行结果返回给消费者</li>
+</ol>
+<h3 id="消费者"><a href="#消费者" class="headerlink" title="消费者"></a>消费者</h3><ol>
+<li>对含有相应注解的字段注入代理对象。实现类似@Autowired的功能</li>
+<li>将调用的类名，方法，参数，封装成元数据，并从注册中心获取对应执行地址</li>
+<li>向执行地址发送相应数据，并接受返回结果</li>
+</ol>
+<p>总体来说一个完整的RPC调用流程基本上如上所述，接下来我们就来实现一个简易的RPC调用框架，当然是基于java的，在理论上rpc调用是不限语言的，比如gRPC或者Thrift都是可以跨语言执行的，而当当网二次开发的Dubbox也是可以跨语言的。</p>
+<h2 id="工具选型"><a href="#工具选型" class="headerlink" title="工具选型"></a>工具选型</h2><p>通过上述流程可以得知，在这个rpc框架中我们需要选择一个注册中心以及网络通讯框架，并且要选择通讯协议，在这个框架中我选择zookeeper做为注册中心，netty为网络通讯框架，通讯协议选择Http（别问，问就是好写）序列化协议选择JSON（别问，好写）。</p>
+<h2 id="项目创建"><a href="#项目创建" class="headerlink" title="项目创建"></a>项目创建</h2><p><img src="https://tva1.sinaimg.cn/large/007S8ZIlly1gho1gyovhaj30om0c0jse.jpg" srcset="/img/loading.gif" lazyload alt="image-20200812150237339"></p>
+<p>整项目结构如上图，common项目是通用的内容也就是框架的主题内容，consumer是消费者项目，producer是生产者项目，这两个项目都是springboot项目并且依赖common项目。</p>
+<h2 id="通用部分"><a href="#通用部分" class="headerlink" title="通用部分"></a>通用部分</h2><p>在common项目pom.xml中加入以下依赖</p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><code class="hljs xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>com.alibaba<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>fastjson<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>1.2.47<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>       <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br>       <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.zookeeper<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>zookeeper<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>3.4.14<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">exclusions</span>&gt;</span><br>               <span class="hljs-tag">&lt;<span class="hljs-name">exclusion</span>&gt;</span><br>                   <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.slf4j<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>                   <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>slf4j-log4j12<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>               <span class="hljs-tag">&lt;/<span class="hljs-name">exclusion</span>&gt;</span><br>           <span class="hljs-tag">&lt;/<span class="hljs-name">exclusions</span>&gt;</span><br><br>       <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br>       <span class="hljs-comment">&lt;!-- https://mvnrepository.com/artifact/io.netty/netty-all --&gt;</span><br>       <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>io.netty<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>netty-all<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>4.1.42.Final<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>       <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br>       <span class="hljs-comment">&lt;!-- https://mvnrepository.com/artifact/org.apache.curator/curator-framework --&gt;</span><br>       <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.apache.curator<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>curator-recipes<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>4.2.0<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>       <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br> <span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>cn.hutool<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>hutool-all<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span><br>           <span class="hljs-tag">&lt;<span class="hljs-name">version</span>&gt;</span>5.0.5<span class="hljs-tag">&lt;/<span class="hljs-name">version</span>&gt;</span><br>       <span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span><br><br></code></pre></td></tr></table></figure>
+
+
+
+<p>在common下创建config包，并创建RpcConfig类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@ConfigurationProperties(prefix = &quot;myrpc&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">RpcConfig</span> </span>&#123;<br><br>    <span class="hljs-keyword">private</span> String localAddress;<br><br>    <span class="hljs-keyword">private</span> Integer  nettyPort;<br>  <br>    <span class="hljs-keyword">private</span> String  basePackage;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> String <span class="hljs-title">getBasePackage</span><span class="hljs-params">()</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> basePackage;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setBasePackage</span><span class="hljs-params">(String basePackage)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.basePackage = basePackage;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> Integer <span class="hljs-title">getNettyPort</span><span class="hljs-params">()</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> nettyPort;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setNettyPort</span><span class="hljs-params">(Integer nettyPort)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.nettyPort = nettyPort;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> String <span class="hljs-title">getLocalAddress</span><span class="hljs-params">()</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> localAddress;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setLocalAddress</span><span class="hljs-params">(String localAddress)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.localAddress = localAddress;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>该配置类配置本地请求地址以及netty启动对应端口</p>
+<p>然后创建ZookeeperConfig类。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-meta">@ConfigurationProperties(prefix = &quot;myrpc.zookeeper&quot;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">ZookeeperConfig</span> </span>&#123;<br><br>    <span class="hljs-keyword">private</span> String url;<br><br>    <span class="hljs-keyword">private</span> Integer sessionTimeOut;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> Integer <span class="hljs-title">getSessionTimeOut</span><span class="hljs-params">()</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> sessionTimeOut;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setSessionTimeOut</span><span class="hljs-params">(Integer sessionTimeOut)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.sessionTimeOut = sessionTimeOut;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> String <span class="hljs-title">getUrl</span><span class="hljs-params">()</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> url;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setUrl</span><span class="hljs-params">(String url)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.url = url;<br>    &#125;<br><br><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>该类用于获取zookeeper相关的配置，然后在创建zookeeperRegister类，该类为zookeeper操作相关工具类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">ZookeeperRegister</span> </span>&#123;<br>		<span class="hljs-comment">//根节点</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> String BASE_NODE = <span class="hljs-string">&quot;/myrpc/&quot;</span>;<br>    <span class="hljs-comment">//缓存生产者数据</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> ConcurrentHashMap&lt;String, List&lt;String&gt;&gt; map = <span class="hljs-keyword">new</span> ConcurrentHashMap&lt;&gt;();<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> ZookeeperConfig zookeeperConfig;<br><br>    <span class="hljs-keyword">private</span> ZooKeeper zooKeeper = <span class="hljs-keyword">null</span>;<br>  <br>		<span class="hljs-comment">//获取生产者信息</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> List&lt;String&gt; <span class="hljs-title">getProducer</span><span class="hljs-params">(Class&lt;?&gt; injectedType)</span> <span class="hljs-keyword">throws</span> Exception </span>&#123;<br>        List&lt;String&gt; producerList = map.get(injectedType.getTypeName());<br>        <span class="hljs-keyword">if</span> (CollectionUtil.isEmpty(producerList)) &#123;<br>            producerList = <span class="hljs-keyword">this</span>.getChildNode(injectedType.getTypeName());<br>            <span class="hljs-keyword">if</span> (CollectionUtil.isEmpty(producerList)) &#123;<br>                <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> RuntimeException(<span class="hljs-string">&quot;没有对应生产者，执行失败&quot;</span>);<br>            &#125;<br>        &#125;<br>        <span class="hljs-keyword">return</span> producerList;<br>    &#125;<br><br><br>    <span class="hljs-meta">@PostConstruct</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">init</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> Exception </span>&#123;<br>        zooKeeper = <span class="hljs-keyword">new</span> ZooKeeper(zookeeperConfig.getUrl(), zookeeperConfig.getSessionTimeOut(), watchedEvent -&gt; &#123;<br>            <span class="hljs-keyword">if</span>(watchedEvent.getState().equals(Watcher.Event.KeeperState.SyncConnected))&#123;<br>                <span class="hljs-keyword">try</span> &#123;<br>                  <span class="hljs-comment">//链接完成后如果没有根节点则创建根节点</span><br>  <span class="hljs-keyword">if</span>(zooKeeper.exists(BASE_NODE.substring(<span class="hljs-number">0</span>,BASE_NODE.lastIndexOf(<span class="hljs-string">&quot;/&quot;</span>)),<span class="hljs-keyword">false</span>)==<span class="hljs-keyword">null</span>)&#123;<br>                        zooKeeper.create(BASE_NODE.substring(<span class="hljs-number">0</span>,BASE_NODE.lastIndexOf(<span class="hljs-string">&quot;/&quot;</span>)),<span class="hljs-keyword">null</span>,ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);<br>                    &#125;<br>                &#125; <span class="hljs-keyword">catch</span> (KeeperException e) &#123;<br>                    e.printStackTrace();<br>                &#125; <span class="hljs-keyword">catch</span> (InterruptedException e) &#123;<br>                    e.printStackTrace();<br>                &#125;<br>            &#125;<br>            System.out.println(watchedEvent);&#125;);<br>    &#125;<br><br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">createNode</span><span class="hljs-params">(String node,CreateMode createMode)</span> <span class="hljs-keyword">throws</span> Exception </span>&#123;<br>        <span class="hljs-keyword">if</span>(!exists(node))&#123;<br>            zooKeeper.create(BASE_NODE + node, <span class="hljs-keyword">null</span>, ZooDefs.Ids.OPEN_ACL_UNSAFE, createMode);<br>        &#125;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">exists</span><span class="hljs-params">(String node)</span> <span class="hljs-keyword">throws</span> KeeperException, InterruptedException </span>&#123;<br>        <span class="hljs-keyword">return</span> zooKeeper.exists(BASE_NODE + node,<span class="hljs-keyword">false</span>)!=<span class="hljs-keyword">null</span>;<br>    &#125;<br><br><br>    <span class="hljs-function"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">resetProducer</span><span class="hljs-params">(String path, List&lt;String&gt; value)</span> </span>&#123;<br>        String className = path.replaceFirst(BASE_NODE, <span class="hljs-string">&quot;&quot;</span>);<br>        map.put(className, value);<br>    &#125;<br><br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> List&lt;String&gt; <span class="hljs-title">getChildNode</span><span class="hljs-params">(String path)</span> <span class="hljs-keyword">throws</span> KeeperException, InterruptedException </span>&#123;<br>        <span class="hljs-keyword">return</span> zooKeeper.getChildren(BASE_NODE + path, watchedEvent -&gt; &#123;<br>            System.out.println(JSON.toJSON(watchedEvent) + <span class="hljs-string">&quot;nodewatchEvent&quot;</span>);<br>            <span class="hljs-keyword">try</span> &#123;<br>              	<span class="hljs-comment">//监听根节点并刷新本地缓存</span><br>                resetProducer(path, getChildNode(path));<br>            &#125; <span class="hljs-keyword">catch</span> (Exception e) &#123;<br>                e.printStackTrace();<br>            &#125;<br>        &#125;);<br>    &#125;<br><br><br><br></code></pre></td></tr></table></figure>
+
+<p>在该类中维护了一个Map，该map缓存了对应的生产者的数据，通过getProducer方法获取对应生产者的数据，而缓存的map的key为接口的全名。</p>
+<p>zookeeper相关的类就创建好了，接下来创建netty相关的，创建netty包并创建NettyServer类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">NettyServer</span> </span>&#123;<br><br>    <span class="hljs-meta">@Resource</span><br>    <span class="hljs-keyword">private</span> RpcConfig rpcConfig;<br><br>    <span class="hljs-meta">@PostConstruct</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">start</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> InterruptedException </span>&#123;<br><br>        EventLoopGroup bossGroup = <span class="hljs-keyword">new</span> NioEventLoopGroup();<br>        EventLoopGroup workGroup = <span class="hljs-keyword">new</span> NioEventLoopGroup();<br><br>        ServerBootstrap serverBootstrap = <span class="hljs-keyword">new</span> ServerBootstrap();<br><br>        serverBootstrap.group(bossGroup, workGroup)<br>                .channel(NioServerSocketChannel.class)<br>                .option(ChannelOption.SO_BACKLOG, <span class="hljs-number">128</span>)<br>                .childOption(ChannelOption.SO_KEEPALIVE, <span class="hljs-keyword">true</span>)<br>                .childHandler(<span class="hljs-keyword">new</span> ChannelInitializer&lt;SocketChannel&gt;() &#123;<br>                    <span class="hljs-meta">@Override</span><br>                    <span class="hljs-function"><span class="hljs-keyword">protected</span> <span class="hljs-keyword">void</span> <span class="hljs-title">initChannel</span><span class="hljs-params">(SocketChannel socketChannel)</span> <span class="hljs-keyword">throws</span> Exception </span>&#123;<br>                                .addLast(<span class="hljs-keyword">new</span> HttpServerCodec())<br>                                .addLast(<span class="hljs-keyword">new</span> HttpObjectAggregator(<span class="hljs-number">5</span> * <span class="hljs-number">1024</span> * <span class="hljs-number">1024</span>))<br>                                .addLast(<span class="hljs-keyword">new</span> NettyServerHandler());<br>                    &#125;<br>                &#125;);<br>        ChannelFuture cf = serverBootstrap.bind(rpcConfig.getNettyPort());<br>        cf.channel().closeFuture();<br>        System.out.println(<span class="hljs-string">&quot;服务启动完毕&quot;</span>);<br><br>    &#125;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>该类为netty启动类，随服务启动而启动，并绑定配置中的端口。并且创建NettyServerHandler类，该类用于处理所有到该服务中的请求</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">NettyServerHandler</span> <span class="hljs-keyword">extends</span> <span class="hljs-title">SimpleChannelInboundHandler</span>&lt;<span class="hljs-title">FullHttpMessage</span>&gt; </span>&#123;<br><br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-function"><span class="hljs-keyword">protected</span> <span class="hljs-keyword">void</span> <span class="hljs-title">channelRead0</span><span class="hljs-params">(ChannelHandlerContext channelHandlerContext, FullHttpMessage msg)</span> <span class="hljs-keyword">throws</span> Exception </span>&#123;<br><br>    &#125;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">channelReadComplete</span><span class="hljs-params">(ChannelHandlerContext ctx)</span> <span class="hljs-keyword">throws</span> Exception </span>&#123;<br>        ctx.flush();<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">writeResponse</span><span class="hljs-params">(ChannelHandlerContext ctx, <span class="hljs-keyword">boolean</span> keepAlive, String responseJson)</span> </span>&#123;<br>        FullHttpResponse response = <span class="hljs-keyword">new</span> DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, Unpooled.copiedBuffer(responseJson, CharsetUtil.UTF_8));  <br>        response.headers().set(HttpHeaderNames.CONTENT_TYPE, <span class="hljs-string">&quot;text/html;charset=UTF-8&quot;</span>);      <br>        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());<br>        <span class="hljs-keyword">if</span> (keepAlive) &#123;<br>            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);<br>        &#125;<br>        ctx.writeAndFlush(response);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>该类中的channelRead0方法是处理请求的方法，该方法我们后续填充。</p>
+<p>然后创建元数据MetaDataObject类，该类为生产者与消费者的通讯类，该类包含需要请求的类名，方法名以及参数列表</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">MetaDataObject</span> <span class="hljs-keyword">implements</span> <span class="hljs-title">Serializable</span> </span>&#123;<br><br>    <span class="hljs-keyword">private</span> Class&lt;?&gt; clazz;<br><br>    <span class="hljs-keyword">private</span> String  methodName;<br><br>    <span class="hljs-keyword">private</span> Object[] parameters;<br><br>    <span class="hljs-keyword">public</span> Object[] getParameters() &#123;<br>        <span class="hljs-keyword">return</span> parameters;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setParameters</span><span class="hljs-params">(Object[] parameters)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.parameters = parameters;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> Class&lt;?&gt; getClazz() &#123;<br>        <span class="hljs-keyword">return</span> clazz;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setClazz</span><span class="hljs-params">(Class&lt;?&gt; clazz)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.clazz = clazz;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> String <span class="hljs-title">getMethodName</span><span class="hljs-params">()</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> methodName;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setMethodName</span><span class="hljs-params">(String methodName)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.methodName = methodName;<br>    &#125;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>接下来创建RpcResponse类，该类为生产者返回调用结果的类</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">RpcResponse</span> </span>&#123;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> String SUCCESS=<span class="hljs-string">&quot;200&quot;</span>;<br><br>    <span class="hljs-keyword">private</span> String code;<br><br>    <span class="hljs-keyword">private</span> Object content;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> String <span class="hljs-title">getCode</span><span class="hljs-params">()</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> code;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setCode</span><span class="hljs-params">(String code)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.code = code;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> Object <span class="hljs-title">getContent</span><span class="hljs-params">()</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> content;<br>    &#125;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">setContent</span><span class="hljs-params">(Object content)</span> </span>&#123;<br>        <span class="hljs-keyword">this</span>.content = content;<br>    &#125;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+
+
+<h2 id="生产者部分"><a href="#生产者部分" class="headerlink" title="生产者部分"></a>生产者部分</h2><p>基础部分创建完毕后，开始创建生产者部分，在改部分中我们需要实现，在服务启动后，扫描所有需要暴露的服务类，并且将服务注册到注册中心中然后缓存到本地。并且要处理消费者发送的请求找到对应的服务进行反射调用</p>
+<p>首先需要创建标记服务的注解@RpcService，该注解标记的类视为暴露出的服务</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Documented</span><br><span class="hljs-meta">@Retention(RetentionPolicy.RUNTIME)</span><br><span class="hljs-meta">@Target(&#123;ElementType.TYPE&#125;)</span><br><span class="hljs-keyword">public</span> <span class="hljs-meta">@interface</span> RpcService &#123;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>我们可以利用Spring的ApplicationListener，在容器初始化完成后，扫描所有对应的包，并且找到所有被@RpcService标记的类，并且将该类缓存并且暴露到注册中心中</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">MyApplicationListener</span> <span class="hljs-keyword">implements</span> <span class="hljs-title">ApplicationListener</span> </span>&#123;<br>  <br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">final</span> Map producerHolder = <span class="hljs-keyword">new</span> ConcurrentHashMap();<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> RpcConfig rpcConfig;<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> ZookeeperRegister zookeeperRegister;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">onApplicationEvent</span><span class="hljs-params">(ApplicationEvent applicationEvent)</span> </span>&#123;<br>        ResourcePatternResolver resourcePatternResolver = <span class="hljs-keyword">new</span> PathMatchingResourcePatternResolver();<br>        <span class="hljs-keyword">final</span> String RESOURCE_PATTERN = <span class="hljs-string">&quot;/**/*.class&quot;</span>;<br>        <span class="hljs-keyword">try</span> &#123;<br>            String pattern = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX + ClassUtils.convertClassNameToResourcePath(rpcConfig.getBasePackage())<br>                    + RESOURCE_PATTERN;<br>            Resource[] resources = resourcePatternResolver.getResources(pattern);<br>            MetadataReaderFactory readerFactory = <span class="hljs-keyword">new</span> CachingMetadataReaderFactory(resourcePatternResolver);<br>            <span class="hljs-keyword">for</span> (Resource resource : resources) &#123;<br>                <span class="hljs-keyword">if</span> (resource.isReadable()) &#123;<br>                    MetadataReader reader = readerFactory.getMetadataReader(resource);<br>                    <span class="hljs-comment">//扫描到的class</span><br>                    String className = reader.getClassMetadata().getClassName();<br>                    Class&lt;?&gt; clazz = Class.forName(className);<br>                    <span class="hljs-comment">//判断是否有指定注解</span><br>                    RpcService annotation = clazz.getAnnotation(RpcService.class);<br>                    <span class="hljs-keyword">if</span> (annotation != <span class="hljs-keyword">null</span> &amp;&amp; producerHolder.get(className) == <span class="hljs-keyword">null</span>) &#123;<br>                        <span class="hljs-comment">//这个类使用了自定义注解</span><br>                        Class&lt;?&gt;[] face = clazz.getInterfaces();<br>                        <span class="hljs-keyword">for</span> (Class&lt;?&gt; aClass : face) &#123;<br>                            producerHolder.put(aClass.getTypeName(), clazz.newInstance());<br>                            registerProducer(aClass);<br>                        &#125;<br>                    &#125;<br>                &#125;<br>            &#125;<br>        &#125; <span class="hljs-keyword">catch</span> (Exception e) &#123;<br>            e.printStackTrace();<br>        &#125;<br>    &#125;<br><br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">registerProducer</span><span class="hljs-params">(Class&lt;?&gt; clazz)</span> <span class="hljs-keyword">throws</span> Exception </span>&#123;<br>        zookeeperRegister.createNode(clazz.getTypeName(), CreateMode.PERSISTENT);<br>        zookeeperRegister.createNode(clazz.getTypeName()+<span class="hljs-string">&quot;/&quot;</span>+rpcConfig.getLocalAddress(), CreateMode.EPHEMERAL);<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>这样我们就将所有的服务缓存在producerHolder这个Map中，并且注册到zookeeper中，注册列表为 <code>根目录-&gt;类名-&gt;生产者地址</code>接下来我们创建处理消费者请求的部分，在刚刚创建的NettyServerHandler中的channelRead0方法中加入以下代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Override</span><br>  <span class="hljs-function"><span class="hljs-keyword">protected</span> <span class="hljs-keyword">void</span> <span class="hljs-title">channelRead0</span><span class="hljs-params">(ChannelHandlerContext channelHandlerContext, FullHttpMessage msg)</span> <span class="hljs-keyword">throws</span> Exception </span>&#123;<br>      MetaDataObject metaData = JSON.parseObject(msg.content().toString(CharsetUtil.UTF_8),MetaDataObject.class);<br>      Object handler = MyApplicationListener.producerHolder.get(metaData.getClazz().getTypeName());<br>      Object result = ReflectUtil.invoke(handler, metaData.getMethodName(), metaData.getParameters());<br>      RpcResponse response= <span class="hljs-keyword">new</span> RpcResponse();<br>      response.setCode(RpcResponse.SUCCESS);<br>      response.setContent(result);<br>      writeResponse(channelHandlerContext,<span class="hljs-keyword">true</span>,JSON.toJSONString(response));<br>  &#125;<br></code></pre></td></tr></table></figure>
+
+<p>在改方法中我们首先获取请求传入过来的数据，并且转换成对应的元数据对象，然后在producer中获取对应处理的handler并且通过反射的方式调用对应的方法并将返回值通过通道返回给消费者。</p>
+<p>至此 生产者的部分就创建完毕了。</p>
+<h2 id="消费者部分"><a href="#消费者部分" class="headerlink" title="消费者部分"></a>消费者部分</h2><p>在消费者部分，我们需要实现将代理自动注入到对应的service中并且在代理中通过网络请求的方式去消费者请求数据。</p>
+<p>首先需要创建自动注入的标记注解@RpcAutowired</p>
+<figure class="highlight less"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs less"><span class="hljs-variable">@Documented</span><br><span class="hljs-variable">@Retention</span>(RetentionPolicy.RUNTIME)<br><span class="hljs-variable">@Target</span>(&#123;ElementType.FIELD&#125;)<br>public <span class="hljs-variable">@interface</span> RpcAutowired &#123;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>然后创建RpcAutowiredAnnotationBeanPostProcesser用来进行自动注入的功能</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">RpcAutowiredAnnotationBeanPostProcessor</span> <span class="hljs-keyword">extends</span> <span class="hljs-title">InstantiationAwareBeanPostProcessorAdapter</span> </span>&#123;<br><br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> PropertyValues <span class="hljs-title">postProcessProperties</span><span class="hljs-params">(PropertyValues pvs, Object bean, String beanName)</span> <span class="hljs-keyword">throws</span> BeansException </span>&#123;<br><br>        <span class="hljs-keyword">try</span> &#123;<br>            InjectionMetadata metadata = <span class="hljs-keyword">new</span> InjectionMetadata(bean.getClass(), getAnnotationFieldElement(bean.getClass(), beanName));<br>            metadata.inject(bean, beanName, pvs);<br>        &#125; <span class="hljs-keyword">catch</span> (Throwable throwable) &#123;<br>            throwable.printStackTrace();<br>        &#125;<br><br><br>        <span class="hljs-keyword">return</span> pvs;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> List&lt;InjectionMetadata.InjectedElement&gt; getAnnotationFieldElement(Class&lt;?&gt; aClass, String beanName) &#123;<br>        List&lt;InjectionMetadata.InjectedElement&gt; list = <span class="hljs-keyword">new</span> ArrayList&lt;&gt;();<br>        <span class="hljs-keyword">for</span> (Field field : ReflectUtil.getFields(aClass)) &#123;<br>            RpcAutowired auto = field.getAnnotation(RpcAutowired.class);<br>            <span class="hljs-keyword">if</span> (auto != <span class="hljs-keyword">null</span>) &#123;<br>                list.add(<span class="hljs-keyword">new</span> AnnotatedFieldElement(field));<br>            &#125;<br>        &#125;<br>        <span class="hljs-keyword">return</span> list;<br>    &#125;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">AnnotatedFieldElement</span> <span class="hljs-keyword">extends</span> <span class="hljs-title">InjectionMetadata</span>.<span class="hljs-title">InjectedElement</span> </span>&#123;<br><br>        <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> Field field;<br><br><br>        <span class="hljs-keyword">private</span> <span class="hljs-keyword">volatile</span> Object bean;<br><br>        <span class="hljs-function"><span class="hljs-keyword">protected</span> <span class="hljs-title">AnnotatedFieldElement</span><span class="hljs-params">(Field field)</span> </span>&#123;<br>            <span class="hljs-keyword">super</span>(field, <span class="hljs-keyword">null</span>);<br>            <span class="hljs-keyword">this</span>.field = field;<br>        &#125;<br><br>        <span class="hljs-meta">@Override</span><br>        <span class="hljs-function"><span class="hljs-keyword">protected</span> <span class="hljs-keyword">void</span> <span class="hljs-title">inject</span><span class="hljs-params">(Object bean, String beanName, PropertyValues pvs)</span> <span class="hljs-keyword">throws</span> Throwable </span>&#123;<br><br>            Class&lt;?&gt; injectedType = field.getType();<br><br>            Object injectedObject = ProxyFactory.create(injectedType);<br><br>            ReflectionUtils.makeAccessible(field);<br><br>            field.set(bean,injectedObject);<br><br>        &#125;<br><br>    &#125;<br><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>该类继承了InstantiationAwareBeanPostProcessorAdapter，是Spring提供的拓展接口，在该接口实现了postProcessProperties，会在Spring初始化bean的时候调用。通过反射获取改类的所有Field如果该Field被@RpcAutowired注解，则加入AnnotatedFieldElement类，该类继承了InjectedElement类，spring在注入的时候会调用该类的inject方法对该类进行注入，我们在该类中利用反射注入我们创建的代理对象，实现自动注入，顺带一提，Spring的自动注入也是利用类似的手段完成的</p>
+<p>接下来创建代理工厂累ProxyFactory</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Component</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">ProxyFactory</span>  </span>&#123;<br><br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-title">ProxyFactory</span><span class="hljs-params">(ZookeeperRegister zookeeperRegister)</span> </span>&#123;<br>        ProxyFactory.zookeeperRegister = zookeeperRegister;<br>    &#125;<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> ZookeeperRegister zookeeperRegister;<br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> Object <span class="hljs-title">create</span><span class="hljs-params">(Class&lt;?&gt; injectedType)</span> </span>&#123;<br>        <span class="hljs-keyword">return</span> Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(), <span class="hljs-keyword">new</span> Class[]&#123;injectedType&#125;, (proxy, method, args) -&gt; &#123;<br>            MetaDataObject metaDataObject = <span class="hljs-keyword">new</span> MetaDataObject();<br>            List&lt;String&gt; producerList = zookeeperRegister.getProducer(injectedType);<br>            metaDataObject.setClazz(injectedType);<br>            metaDataObject.setMethodName(method.getName());<br>            metaDataObject.setParameters(args);<br>            String result = HttpUtil.post(producerList.get(<span class="hljs-number">0</span>), JSON.toJSONString(metaDataObject));<br>            RpcResponse response = JSON.parseObject(result, RpcResponse.class);<br>            System.out.println(JSON.toJSON(response));<br>            <span class="hljs-keyword">if</span> (!response.getCode().equals(RpcResponse.SUCCESS)) &#123;<br>                <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> RuntimeException(<span class="hljs-string">&quot;远程调用失败&quot;</span>);<br>            &#125;<span class="hljs-keyword">else</span>&#123;<br>                <span class="hljs-keyword">return</span> response.getContent();<br>            &#125;<br>        &#125;);<br><br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>在该类中，利用jdk的动态代理创建一个实例，在该代理中，利用Http请求对生产者服务进行请求。</p>
+<p>然后创建CommonRegister类，将我们自己创建的RpcAutowiredAnnotationBeanPostProcessor注册到spring中使其生效</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">CommonRegister</span> <span class="hljs-keyword">implements</span> <span class="hljs-title">ImportBeanDefinitionRegistrar</span> </span>&#123;<br><br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">registerBeanDefinitions</span><span class="hljs-params">(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry beanDefinitionRegistry)</span> </span>&#123;<br>        registerInfrastructureBean(beanDefinitionRegistry,<span class="hljs-string">&quot;RpcAutowiredAnnotationBeanPostProcessor&quot;</span>, RpcAutowiredAnnotationBeanPostProcessor.class);<br><br>    &#125;<br><br><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">static</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">registerInfrastructureBean</span><span class="hljs-params">(BeanDefinitionRegistry beanDefinitionRegistry,</span></span><br><span class="hljs-params"><span class="hljs-function">                                                     String beanName,</span></span><br><span class="hljs-params"><span class="hljs-function">                                                     Class&lt;?&gt; beanType)</span> </span>&#123;<br>        <span class="hljs-keyword">boolean</span> registered = <span class="hljs-keyword">false</span>;<br>        <span class="hljs-keyword">if</span> (!beanDefinitionRegistry.containsBeanDefinition(beanName)) &#123;<br>            RootBeanDefinition beanDefinition = <span class="hljs-keyword">new</span> RootBeanDefinition(beanType);<br>            beanDefinition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);<br>            beanDefinitionRegistry.registerBeanDefinition(beanName, beanDefinition);<br>            registered = <span class="hljs-keyword">true</span>;<br>        &#125;<br><br>        <span class="hljs-keyword">return</span> registered;<br>    &#125;<br><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>该类继承了ImportBeanDefinitionRegistrar，该类只能通过@Import方式进行注入，会在spring启动时调用方法动态的注册bean，所以要创建一个BaseConfig类将该类注册到Spring中</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@Import(CommonRegister.class)</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">BaseConfig</span> </span>&#123;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>至此消费者的部分也已经实现完毕了。该项目的部分实现，参考了dubbo的部分代码。</p>
+<h2 id="测试"><a href="#测试" class="headerlink" title="测试"></a>测试</h2><p>首先需要在common中创建一个BaseService并且提供一个test接口</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">BaseService</span> </span>&#123;<br>    <span class="hljs-function">String <span class="hljs-title">test</span><span class="hljs-params">(String msg)</span></span>;<br>&#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>然后在生产者项目中创建一个实现类并且用RpcService注解</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RpcService</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">BaseServiceImpl</span> <span class="hljs-keyword">implements</span> <span class="hljs-title">BaseService</span> </span>&#123;<br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> String <span class="hljs-title">test</span><span class="hljs-params">(String msg)</span> </span>&#123;<br>        System.out.println(<span class="hljs-string">&quot;我接受到了远程调用的信息===================&gt;&quot;</span>+msg);<br>        <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;返回给消费者结果&quot;</span>;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>然后在消费者项目中创建一个Controller</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@RestController</span><br><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">ConsumerController</span> </span>&#123;<br><br>    <span class="hljs-meta">@RpcAutowired</span><br>    <span class="hljs-keyword">private</span> BaseService baseService;<br><br>    <span class="hljs-meta">@RequestMapping(&quot;test&quot;)</span><br>    <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">test</span><span class="hljs-params">()</span></span>&#123;<br>        baseService.test(<span class="hljs-string">&quot;我是消费者&quot;</span>);<br>    &#125;<br><br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>生产者项目的配置文件</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">myrpc:</span><br>  <span class="hljs-attr">zookeeper:</span><br>    <span class="hljs-attr">url:</span> <span class="hljs-string">localhost:2181</span><br>    <span class="hljs-attr">sessionTimeOut:</span> <span class="hljs-number">10000</span><br>  <span class="hljs-attr">netty-port:</span> <span class="hljs-number">10000</span><br>  <span class="hljs-attr">local-address:</span> <span class="hljs-string">localhost:10000</span><br>  <span class="hljs-attr">base-package:</span> <span class="hljs-string">com.myrpc</span><br><span class="hljs-attr">server:</span><br>  <span class="hljs-attr">port:</span> <span class="hljs-number">8980</span><br><br></code></pre></td></tr></table></figure>
+
+<p>消费者配置文件</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs yaml"><span class="hljs-attr">myrpc:</span><br>  <span class="hljs-attr">zookeeper:</span><br>    <span class="hljs-attr">url:</span> <span class="hljs-string">localhost:2181</span><br>    <span class="hljs-attr">sessionTimeOut:</span> <span class="hljs-number">10000</span><br>  <span class="hljs-attr">local-adderss:</span> <span class="hljs-string">localhost:9999</span><br>  <span class="hljs-attr">netty-port:</span> <span class="hljs-number">9999</span><br>  <span class="hljs-attr">base-package:</span> <span class="hljs-string">com.myrpc</span><br><span class="hljs-attr">server:</span><br>  <span class="hljs-attr">port:</span> <span class="hljs-number">8979</span><br></code></pre></td></tr></table></figure>
+
+
+
+<p>将两个项目同时启动并且请求消费者的接口会得到如下结果</p>
+<p><img src="https://tva1.sinaimg.cn/large/007S8ZIlly1gho5q04143j30s00i6wi7.jpg" srcset="/img/loading.gif" lazyload alt="image-20200812172946676"></p>
+<p>至此整个简易RPC框架就已经完成了相信对RPC调用的流程也有了一定的了解。</p>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/rpc/">rpc</a>
+                    
+                  </div>
+                
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/threadlocal/">
+                        <span class="hidden-mobile">ThreadLocal源码解析</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/tocbot@4.12.3/dist/tocbot.min.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4.3.1/anchor.min.js" ></script>
+
+
+
+  <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2.0.8/dist/clipboard.min.js" ></script>
+
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+      typing(title)
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"live2d-widget-model-hijiki"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>

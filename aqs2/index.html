@@ -1,0 +1,467 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=&#34;auto&#34;>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="description" content="在前一章节中,我们简单分析过aqs中加锁以及阻塞的流程,这一章我们来分析一下condition条件阻塞工具的实现
+什么是conditioncondition是作为条件阻塞器,通过调用await,signal和signalAll方法来阻塞和唤醒线程,可以横向对比的是Object对象的wait,notify以及notifyAll方法,值得注意的是,与Object的wait需要跟synchronized">
+  <meta name="author" content="翟相壹">
+  <meta name="keywords" content="小阿翟的个人博客">
+  
+  <title>浅析AQS (二)--condition的实现 - azhai&#39;s blog</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4.0.0/github-markdown.min.css" />
+  <link  rel="stylesheet" href="/lib/hint/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10.7.2/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.css" />
+  
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_kmeydafke9r.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"602122993.gihub.io","root":"/","version":"1.8.11","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand"
+       href="/">&nbsp;<strong>小阿宅的技术博客</strong>&nbsp;</a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" data-toggle="modal" data-target="#modalSearch">&nbsp;<i
+                class="iconfont icon-search"></i>&nbsp;</a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="浅析AQS (二)--condition的实现">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2020-07-12 13:27" pubdate>
+        2020年7月12日 下午
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      1.8k 字
+    </span>
+  
+
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      22
+       分钟
+    </span>
+  
+
+  
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">浅析AQS (二)--condition的实现</h1>
+            
+            <div class="markdown-body">
+              <p>在前一章节中,我们简单分析过aqs中加锁以及阻塞的流程,这一章我们来分析一下condition条件阻塞工具的实现</p>
+<h2 id="什么是condition"><a href="#什么是condition" class="headerlink" title="什么是condition"></a>什么是condition</h2><p>condition是作为条件阻塞器,通过调用await,signal和signalAll方法来阻塞和唤醒线程,可以横向对比的是Object对象的wait,notify以及notifyAll方法,值得注意的是,与Object的wait需要跟synchronized结合使用一样,condition也需要跟锁结合使用,比如ReenTrantLock中的newCondition方法就是创建一个全新的条件阻塞器,而调用await方法也需要通过lock进行加锁才可以正常使用.</p>
+<span id="more"></span>
+
+<h2 id="condition-await与Object-wait的区别"><a href="#condition-await与Object-wait的区别" class="headerlink" title="condition.await与Object.wait的区别"></a>condition.await与Object.wait的区别</h2><ul>
+<li>首先Object相关的阻塞方法都是通过本地方法实现的,而condition的阻塞和唤醒方法都是通过java调用来实现的,其次就是每个Object只能绑定一个阻塞器,即synchronized所绑定的对象,只有通过调用该对象的wait和notify方法才能实现阻塞以及唤醒,并且notify会在调用wait方法的线程中随机挑选一个唤醒</li>
+<li>而一个lock可以创建多个condition,例如ReentrantLock中的newCondition方法每次调用都会返回一个新的条件阻塞器,这样做的好处是,调用condition方法的signal只会唤醒当前condition调用await方法阻塞的线程,利用这种模式可以实现阻塞队列,如经典的ArrayBlockingQueue就是利用ReenTrantLock创建了两个condition控制队列空时的阻塞以及队列满时的阻塞</li>
+</ul>
+<h2 id="await方法的实现"><a href="#await方法的实现" class="headerlink" title="await方法的实现"></a>await方法的实现</h2><p>老规矩先上源码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">void</span> <span class="hljs-title">await</span><span class="hljs-params">()</span> <span class="hljs-keyword">throws</span> InterruptedException </span>&#123;<br>    		<span class="hljs-comment">//检测线程是否中断</span><br>            <span class="hljs-keyword">if</span> (Thread.interrupted())<br>                <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> InterruptedException();<br>    		<span class="hljs-comment">//添加一个condition的waiter</span><br>            Node node = addConditionWaiter();<br>    		<span class="hljs-comment">//释放锁</span><br>            <span class="hljs-keyword">int</span> savedState = fullyRelease(node);<br>    		<span class="hljs-comment">//打断模式</span><br>            <span class="hljs-keyword">int</span> interruptMode = <span class="hljs-number">0</span>;<br>            <span class="hljs-keyword">while</span> (!isOnSyncQueue(node)) &#123;<br>    		<span class="hljs-comment">//进行循环如果当前线程不在同步队列中,则阻塞线程</span><br>                LockSupport.park(<span class="hljs-keyword">this</span>);<br>                <span class="hljs-keyword">if</span> ((interruptMode = checkInterruptWhileWaiting(node)) != <span class="hljs-number">0</span>)<br>                    <span class="hljs-keyword">break</span>;<br>            &#125;<br>    		<span class="hljs-comment">//如果在同步队列中,则进行获取阻塞操作</span><br>            <span class="hljs-keyword">if</span> (acquireQueued(node, savedState) &amp;&amp; interruptMode != THROW_IE)<br>                interruptMode = REINTERRUPT;<br>            <span class="hljs-keyword">if</span> (node.nextWaiter != <span class="hljs-keyword">null</span>) <span class="hljs-comment">// clean up if cancelled</span><br>                <span class="hljs-comment">//取消后续已经被取消的等待线程</span><br>                unlinkCancelledWaiters();<br>            <span class="hljs-keyword">if</span> (interruptMode != <span class="hljs-number">0</span>)<br>                reportInterruptAfterWait(interruptMode);<br>        &#125;<br></code></pre></td></tr></table></figure>
+
+<p>await的实现并不难理解,而操作的Node节点与AQS中的node节点是一个对象,通过标记node的waitStatus变量来判断当前node的状态,我们再来看看addConditionWaiter的实现</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-function"><span class="hljs-keyword">private</span> Node <span class="hljs-title">addConditionWaiter</span><span class="hljs-params">()</span> </span>&#123;<br>        Node t = lastWaiter;<br>        <span class="hljs-comment">//如果尾部的等待node被取消了,则遍历取消所有的被取消的节点</span><br>        <span class="hljs-keyword">if</span> (t != <span class="hljs-keyword">null</span> &amp;&amp; t.waitStatus != Node.CONDITION) &#123;<br>            unlinkCancelledWaiters();<br>            t = lastWaiter;<br>        &#125;<br>    	<span class="hljs-comment">//创建一个condition状态的node节点</span><br>        Node node = <span class="hljs-keyword">new</span> Node(Thread.currentThread(), Node.CONDITION);<br>    	<span class="hljs-comment">//如果尾结点是空证明是一个空队列,将头结点设置为当前节点,否则将当前节点插入当前尾节点的后面</span><br>        <span class="hljs-keyword">if</span> (t == <span class="hljs-keyword">null</span>)<br>            firstWaiter = node;<br>        <span class="hljs-keyword">else</span><br>            t.nextWaiter = node;<br>        lastWaiter = node;<br>        <span class="hljs-keyword">return</span> node;<br>&#125;<br><br><span class="hljs-function"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">unlinkCancelledWaiters</span><span class="hljs-params">()</span> </span>&#123;<br>            Node t = firstWaiter;<br>            Node trail = <span class="hljs-keyword">null</span>;<br>    		<span class="hljs-comment">//遍历取消所有节点状态不是condition的节点</span><br>            <span class="hljs-keyword">while</span> (t != <span class="hljs-keyword">null</span>) &#123;<br>                Node next = t.nextWaiter;<br>                <span class="hljs-keyword">if</span> (t.waitStatus != Node.CONDITION) &#123;<br>                    t.nextWaiter = <span class="hljs-keyword">null</span>;<br>                    <span class="hljs-keyword">if</span> (trail == <span class="hljs-keyword">null</span>)<br>                        firstWaiter = next;<br>                    <span class="hljs-keyword">else</span><br>                        trail.nextWaiter = next;<br>                    <span class="hljs-keyword">if</span> (next == <span class="hljs-keyword">null</span>)<br>                        lastWaiter = trail;<br>                &#125;<br>                <span class="hljs-keyword">else</span><br>                    trail = t;<br>                t = next;<br>            &#125;<br>        &#125;<br></code></pre></td></tr></table></figure>
+
+<p>在这个方法中,值得注意的是通过condition维护的队列,与aqs中排队的队列是两个完全不同的队列,condition的队列维护在condition对象中,通过firstWaiter和lastWaiter变量来维护队列的头与尾,我们继续往下看fullyRelease方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-function"><span class="hljs-keyword">final</span> <span class="hljs-keyword">int</span> <span class="hljs-title">fullyRelease</span><span class="hljs-params">(Node node)</span> </span>&#123;<br>    <span class="hljs-keyword">boolean</span> failed = <span class="hljs-keyword">true</span>;<br>    <span class="hljs-keyword">try</span> &#123;<br>        <span class="hljs-keyword">int</span> savedState = getState();<br>        <span class="hljs-keyword">if</span> (release(savedState)) &#123;<br>            failed = <span class="hljs-keyword">false</span>; <br>            <span class="hljs-keyword">return</span> savedState;<br>        &#125; <span class="hljs-keyword">else</span> &#123;<br>            <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> IllegalMonitorStateException();<br>        &#125;<br>    &#125; <span class="hljs-keyword">finally</span> &#123;<br>        <span class="hljs-keyword">if</span> (failed)<br>            node.waitStatus = Node.CANCELLED;<br>    &#125;<br>&#125;<br></code></pre></td></tr></table></figure>
+
+<p>fullyRelease方法可见是直接释放当前独占锁,在java中目前只有ReenTrantLock以及ReentrantReadWriteLock,实现了newCondition方法,所以共享锁是不允许condition阻塞的,</p>
+<p>继续向下看isOnSyncQueue方法,顾名思义该方法是判断当前node是否在同步队列总</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-function"><span class="hljs-keyword">final</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">isOnSyncQueue</span><span class="hljs-params">(Node node)</span> </span>&#123;<br>        <span class="hljs-keyword">if</span> (node.waitStatus == Node.CONDITION || node.prev == <span class="hljs-keyword">null</span>)<br>            <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;<br>        <span class="hljs-keyword">if</span> (node.next != <span class="hljs-keyword">null</span>) <span class="hljs-comment">// If has successor, it must be on queue</span><br>            <span class="hljs-keyword">return</span> <span class="hljs-keyword">true</span>;<br>        <span class="hljs-keyword">return</span> findNodeFromTail(node);<br>    &#125;<br></code></pre></td></tr></table></figure>
+
+<p>首先是校验当前节点的状态,如果节点状态还是condition那么一定没有插入队列中,而同样node.prev前面节点如果为空自然是也没有插入队列的,后续判断node.next同样是判断后续有没有等待节点,这里值得注意的是,node.next是同步队列节点的下一个节点,而condition阻塞队列的节点为nextWaiter不要弄混了,</p>
+<p>如果这两步判断没有成功的话,说明当前节点的prev节点不为空,而next节点为空,而node.prev节点不为空,,但是还没有在队列上,因为有可能cas失败,所以要从尾部遍历一遍确定在没在节点中.</p>
+<p>如果在同步队列中则调用acquireQueued尝试获取锁或者排队,接下来就是判断是否打断等流程,后续不在赘述,接下来我们康康signal方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">void</span> <span class="hljs-title">signal</span><span class="hljs-params">()</span> </span>&#123;<br>    		<span class="hljs-comment">//判断当前是否是独占模式获取锁,如果以非独占模式获取锁则抛出异常</span><br>            <span class="hljs-keyword">if</span> (!isHeldExclusively())<br>                <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> IllegalMonitorStateException();<br>            Node first = firstWaiter;<br>            <span class="hljs-keyword">if</span> (first != <span class="hljs-keyword">null</span>)<br>                doSignal(first);<br>        &#125;<br><br><span class="hljs-function"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">doSignal</span><span class="hljs-params">(Node first)</span> </span>&#123;<br>            <span class="hljs-keyword">do</span> &#123;<br>                <span class="hljs-comment">//把头结点后移并且判断是否为空,如果为空则将尾节点为空</span><br>                <span class="hljs-keyword">if</span> ( (firstWaiter = first.nextWaiter) == <span class="hljs-keyword">null</span>)<br>                    lastWaiter = <span class="hljs-keyword">null</span>;<br>                first.nextWaiter = <span class="hljs-keyword">null</span>;<br>                <span class="hljs-comment">//将当前节点插入阻塞队列中</span><br>            &#125; <span class="hljs-keyword">while</span> (!transferForSignal(first) &amp;&amp;<br>                     (first = firstWaiter) != <span class="hljs-keyword">null</span>);<br>        &#125;<br><span class="hljs-function"><span class="hljs-keyword">final</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">transferForSignal</span><span class="hljs-params">(Node node)</span> </span>&#123;<br>        <span class="hljs-comment">//如果换失败,则只有可能是被取消了</span><br>        <span class="hljs-keyword">if</span> (!compareAndSetWaitStatus(node, Node.CONDITION, <span class="hljs-number">0</span>))<br>            <span class="hljs-keyword">return</span> <span class="hljs-keyword">false</span>;<br>		<span class="hljs-comment">//将当前线程插入队列,并返回node节点前面的节点,</span><br>        Node p = enq(node);<br>        <span class="hljs-keyword">int</span> ws = p.waitStatus;<br>    	<span class="hljs-comment">//修改前一个节点的状态为signle以便被唤醒</span><br>        <span class="hljs-keyword">if</span> (ws &gt; <span class="hljs-number">0</span> || !compareAndSetWaitStatus(p, ws, Node.SIGNAL))<br>            <span class="hljs-comment">//如果线程被取消了,或者将waitstatus修改失败的话,说明当前线程已经被取消了</span><br>            LockSupport.unpark(node.thread);<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">true</span>;<br>    &#125;<br></code></pre></td></tr></table></figure>
+
+<p>首先调用signal时一定是要以独占锁的模式调用,否则会抛出异常,然后将当前等待节点后移,并且将当前的节点插入阻塞队列中,不需要唤醒线程因为调用signal时一定是已经被某一线程获取了锁,而当调用release时会释放锁并且自动调用后续的锁</p>
+<p>那么这里有一个问题就是为什么会在这里调用一次unpark,就算不调用,等到下次唤醒的时候,也会清除掉被取消的节点,这里我查阅资料发现,这次唤醒主要是提升性能,在这里唤醒一次,将前面取消的节点都删除,以便下次唤醒不需要在删除节点.这里加不加这个唤醒逻辑上是一样的</p>
+<p>我们再来看看signalAll方法</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">final</span> <span class="hljs-keyword">void</span> <span class="hljs-title">signalAll</span><span class="hljs-params">()</span> </span>&#123;<br>      <span class="hljs-keyword">if</span> (!isHeldExclusively())<br>          <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> IllegalMonitorStateException();<br>      Node first = firstWaiter;<br>      <span class="hljs-keyword">if</span> (first != <span class="hljs-keyword">null</span>)<br>          doSignalAll(first);<br>  &#125;<br><br><span class="hljs-function"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">doSignalAll</span><span class="hljs-params">(Node first)</span> </span>&#123;<br>      lastWaiter = firstWaiter = <span class="hljs-keyword">null</span>;<br>      <span class="hljs-keyword">do</span> &#123;<br>          Node next = first.nextWaiter;<br>          first.nextWaiter = <span class="hljs-keyword">null</span>;<br>          transferForSignal(first);<br>          first = next;<br>      &#125; <span class="hljs-keyword">while</span> (first != <span class="hljs-keyword">null</span>);<br>  &#125;<br></code></pre></td></tr></table></figure>
+
+<p>这里实现与signal几乎相同,只不过一个是将first节点插入队列,而signalAll方法则是将后续队列全部插入同步队列中</p>
+<p>到这里我们就已经将condition的实现完全理清了,后续我们也会再分析利用condition来实现的同步阻塞队列ArrayBlockingQueue</p>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/Java/">Java</a>
+                    
+                      <a class="hover-with-bg" href="/categories/Java/%E5%B9%B6%E5%8F%91/">并发</a>
+                    
+                  </div>
+                
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                      <a href="/reentrantlock/">
+                        <i class="iconfont icon-arrowleft"></i>
+                        <span class="hidden-mobile">ReenTrantLock源码浅析</span>
+                        <span class="visible-mobile">上一篇</span>
+                      </a>
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/aqs/">
+                        <span class="hidden-mobile">浅析AQS(1)---独占锁以及共享锁的实现</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/tocbot@4.12.3/dist/tocbot.min.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4.3.1/anchor.min.js" ></script>
+
+
+
+  <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2.0.8/dist/clipboard.min.js" ></script>
+
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+      typing(title)
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"live2d-widget-model-hijiki"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>
