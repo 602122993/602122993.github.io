@@ -1,0 +1,463 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=&#34;auto&#34;>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/favicon.png">
+  <link rel="icon" href="/img/favicon.png">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="description" content="问题背景众所周知，在Dubbo远程调用中，如果远程服务出现了异常，那么不会将生产者产生的异常直接返回给消费者，而是重新包装了一个异常进行返回，而消费者只能得知触发的异常名称，在实际的业务开发中，这种设计方式是极为不合理的，无论是需要包装业务异常，或者需要触发报警，都无法得到更多准确的信息，对异常的定位也是十分困难的。所以我们进来就来优雅的解决这个问题。">
+  <meta name="author" content="翟相壹">
+  <meta name="keywords" content="小阿翟的个人博客">
+  
+  <title>如何优雅的解决Dubbo远程调用自定义异常 - azhai&#39;s blog</title>
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css" />
+
+
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css@4.0.0/github-markdown.min.css" />
+  <link  rel="stylesheet" href="/lib/hint/hint.min.css" />
+
+  
+    
+    
+      
+      <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@10.7.2/styles/github-gist.min.css" />
+    
+  
+
+  
+    <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.css" />
+  
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_ba1fz6golrf.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_kmeydafke9r.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+<!-- 自定义样式保持在最底部 -->
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    var CONFIG = {"hostname":"602122993.gihub.io","root":"/","version":"1.8.11","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"right","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"copy_btn":true,"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"baidu":null,"google":null,"gtag":null,"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null}},"search_path":"/local-search.xml"};
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+<meta name="generator" content="Hexo 5.4.0"></head>
+
+
+<body>
+  <header style="height: 70vh;">
+    <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand"
+       href="/">&nbsp;<strong>小阿宅的技术博客</strong>&nbsp;</a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                首页
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                归档
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                分类
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                标签
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                关于
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" data-toggle="modal" data-target="#modalSearch">&nbsp;<i
+                class="iconfont icon-search"></i>&nbsp;</a>
+          </li>
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self">&nbsp;<i
+                class="iconfont icon-dark" id="color-toggle-icon"></i>&nbsp;</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+    <div class="banner" id="banner" parallax=true
+         style="background: url('/img/default.png') no-repeat center center;
+           background-size: cover;">
+      <div class="full-bg-img">
+        <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+          <div class="page-header text-center fade-in-up">
+            <span class="h2" id="subtitle" title="如何优雅的解决Dubbo远程调用自定义异常">
+              
+            </span>
+
+            
+              <div class="mt-3">
+  
+  
+    <span class="post-meta">
+      <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+      <time datetime="2021-08-08 16:03" pubdate>
+        2021年8月8日 下午
+      </time>
+    </span>
+  
+</div>
+
+<div class="mt-1">
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-chart"></i>
+      1.6k 字
+    </span>
+  
+
+  
+    
+    <span class="post-meta mr-2">
+      <i class="iconfont icon-clock-fill"></i>
+      
+      
+      20
+       分钟
+    </span>
+  
+
+  
+  
+</div>
+
+            
+          </div>
+
+          
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="d-none d-lg-block col-lg-2"></div>
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div class="py-5" id="board">
+          <article class="post-content mx-auto">
+            <!-- SEO header -->
+            <h1 style="display: none">如何优雅的解决Dubbo远程调用自定义异常</h1>
+            
+            <div class="markdown-body">
+              <h2 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h2><p>众所周知，在Dubbo远程调用中，如果远程服务出现了异常，那么不会将生产者产生的异常直接返回给消费者，而是重新包装了一个异常进行返回，而消费者只能得知触发的异常名称，在实际的业务开发中，这种设计方式是极为不合理的，无论是需要包装业务异常，或者需要触发报警，都无法得到更多准确的信息，对异常的定位也是十分困难的。所以我们进来就来优雅的解决这个问题。</p>
+<span id="more"></span>
+
+<h2 id="源码分析"><a href="#源码分析" class="headerlink" title="源码分析"></a>源码分析</h2><p>Dubbo的异常拦截在ExceptionFilter.class中 我们直接打开代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><code class="hljs java"><span class="hljs-meta">@Override</span><br> <span class="hljs-function"><span class="hljs-keyword">public</span> Result <span class="hljs-title">invoke</span><span class="hljs-params">(Invoker&lt;?&gt; invoker, Invocation invocation)</span> <span class="hljs-keyword">throws</span> RpcException </span>&#123;<br>     <span class="hljs-keyword">try</span> &#123;<br>         Result result = invoker.invoke(invocation);<br>         <span class="hljs-keyword">if</span> (result.hasException() &amp;&amp; GenericService.class != invoker.getInterface()) &#123;<br>             <span class="hljs-comment">// RPC调用发生了异常，且是非泛化实现</span><br>             <span class="hljs-keyword">try</span> &#123;<br>                 Throwable exception = result.getException();<br>                 <span class="hljs-comment">// 1. 如果是checked异常，直接抛出</span><br>                 <span class="hljs-keyword">if</span> (!(exception <span class="hljs-keyword">instanceof</span> RuntimeException) &amp;&amp; (exception <span class="hljs-keyword">instanceof</span> Exception)) &#123;<br>                     <span class="hljs-keyword">return</span> result;<br>                 &#125;<br>                 <span class="hljs-comment">// 2. 在方法签名上有声明，直接抛出</span><br>                 Class&lt;? extends Throwable&gt; exceptionClass = exception.getClass();<br>                 <span class="hljs-keyword">try</span> &#123;<br>                     Method method = invoker.getInterface().getMethod(invocation.getMethodName(), invocation.getParameterTypes());<br>                     Class&lt;?&gt;[] exceptionTypes = method.getExceptionTypes();<br>                     <span class="hljs-keyword">for</span> (Class&lt;?&gt; exceptionType : exceptionTypes) &#123;<br>                         <span class="hljs-keyword">if</span> (exceptionClass.equals(exceptionType)) &#123;<br>                             <span class="hljs-keyword">return</span> result;<br>                         &#125;<br>                     &#125;<br>                 &#125; <span class="hljs-keyword">catch</span> (NoSuchMethodException e) &#123;<br>                     <span class="hljs-keyword">return</span> result;<br>                 &#125;<br><br>                 <span class="hljs-comment">// 未在方法签名上定义的异常，在服务器端打印ERROR日志</span><br>                 logger.error(<span class="hljs-string">&quot;Got unchecked and undeclared exception which called by &quot;</span> + RpcContext.getContext().getRemoteHost()<br>                         + <span class="hljs-string">&quot;. service: &quot;</span> + invoker.getInterface().getName() + <span class="hljs-string">&quot;, method: &quot;</span> + invocation.getMethodName()<br>                         + <span class="hljs-string">&quot;, exception: &quot;</span> + exceptionClass.getName() + <span class="hljs-string">&quot;: &quot;</span> + exception.getMessage(), exception);<br><br>                 <span class="hljs-comment">// 3. 异常类和接口类在同一jar包里，直接抛出</span><br>                 String serviceFile = ReflectUtils.getCodeBase(invoker.getInterface());<br>                 String exceptionFile = ReflectUtils.getCodeBase(exceptionClass);<br>                 <span class="hljs-keyword">if</span> (serviceFile == <span class="hljs-keyword">null</span> || exceptionFile == <span class="hljs-keyword">null</span> || serviceFile.equals(exceptionFile)) &#123;<br>                     <span class="hljs-keyword">return</span> result;<br>                 &#125;<br>                 <span class="hljs-comment">// 4. 是JDK自带的异常，直接抛出</span><br>                 String exceptionClassName = exceptionClass.getName();<br>                 <span class="hljs-keyword">if</span> (exceptionClassName.startsWith(<span class="hljs-string">&quot;java.&quot;</span>) || exceptionClassName.startsWith(<span class="hljs-string">&quot;javax.&quot;</span>)) &#123;<br>                     <span class="hljs-keyword">return</span> result;<br>                 &#125;<br>                 <span class="hljs-comment">// 5. 是框架自身的异常，直接抛出</span><br>                 <span class="hljs-keyword">if</span> (exception <span class="hljs-keyword">instanceof</span> RpcException) &#123;<br>                     <span class="hljs-keyword">return</span> result;<br>                 &#125;<br>                 <span class="hljs-comment">// 6. 否则，包装成RuntimeException抛给消费者</span><br>                 <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> RpcResult(<span class="hljs-keyword">new</span> RuntimeException(StringUtils.toString(exception)));<br>             &#125; <span class="hljs-keyword">catch</span> (Throwable e) &#123;<br>                 logger.warn(<span class="hljs-string">&quot;Fail to ExceptionFilter when called by &quot;</span> + RpcContext.getContext().getRemoteHost()<br>                         + <span class="hljs-string">&quot;. service: &quot;</span> + invoker.getInterface().getName() + <span class="hljs-string">&quot;, method: &quot;</span> + invocation.getMethodName()<br>                         + <span class="hljs-string">&quot;, exception: &quot;</span> + e.getClass().getName() + <span class="hljs-string">&quot;: &quot;</span> + e.getMessage(), e);<br>                 <span class="hljs-keyword">return</span> result;<br>             &#125;<br>         &#125;<br>         <span class="hljs-comment">// RPC调用正常返回或泛化实现</span><br>         <span class="hljs-keyword">return</span> result;<br>     &#125; <span class="hljs-keyword">catch</span> (RuntimeException e) &#123;<br>         logger.error(<span class="hljs-string">&quot;Got unchecked and undeclared exception which called by &quot;</span> + RpcContext.getContext().getRemoteHost()<br>                 + <span class="hljs-string">&quot;. service: &quot;</span> + invoker.getInterface().getName() + <span class="hljs-string">&quot;, method: &quot;</span> + invocation.getMethodName()<br>                 + <span class="hljs-string">&quot;, exception: &quot;</span> + e.getClass().getName() + <span class="hljs-string">&quot;: &quot;</span> + e.getMessage(), e);<br>         <span class="hljs-keyword">throw</span> e;<br>     &#125;<br> &#125;<br><br></code></pre></td></tr></table></figure>
+
+<p>可以看到，源码的注释已经写的很清晰了，在几种情况下dubbo不会进行异常的包装</p>
+<ol>
+<li>check异常</li>
+<li>已经被声明的异常</li>
+<li>异常和接口在同一包下</li>
+<li>jdk异常</li>
+<li>dubbo框架异常</li>
+</ol>
+<p>那么对应以上集中情况，我们对应的方案以及问题如下</p>
+<ol>
+<li>将业务异常修改为check异常——-&gt;不合理，RuntimeException不能不正确的修改为CheckException</li>
+<li>将异常声明在接口上———–&gt;不合理，需要所有消费端都进行修改，并且进行代码的兼容</li>
+<li>将所有异常与接口放在同一包下—————&gt;不合理，不符合代码分包逻辑</li>
+<li>将代码包名修改为java开头或者javax开头———-&gt;不合理，这就不多说了</li>
+<li>所有异常继承RpcException————-&gt;不合理，不应该莫名其妙继承一个三方包的异常，不方便后续拓展</li>
+</ol>
+<p>乍一看，好像所有的解决方案都被否决了，那么是不是我们就没有办法解决这个问题了呢，并不是，我们还有终极武器。——&gt;改源码！</p>
+<p>当然上面说的改源码，并不是直接改Dubbo jar包的源码，这种方式是严格被摒弃的，如果直接改jar包中的源码，那么如果后续更新包内容以后代码会出现各种问题，包括后续的维护也是难上加难</p>
+<p>那么怎么修改呢，Dubbo提供了一种拓展的机制，叫做SPI（Service Provider Interface）机制，即服务发现机制，Dubbo提供的SPI其实是在Java提供的SPI的一种拓展，SPI主要的功能是，可以动态的置顶运行的拓展，在META-INF包下，创建一个文件，将对应的包名与类全名写在改文件中，即可动态加载使用的实现类。</p>
+<p>Dubbo中默认也是基于该模式进行的实现注入，我们可以打开Dubbo的源码包。在META-INF包下可以看到，dubbo/internal文件夹下，全部都是Dubbo基于SPI动态加载所有的实现方法，具体的加载过程本次就不展开讲了，后面可以单开文章讲解一下Java与Dubbo的SPI机制。</p>
+<p>我们直接进入本次的重点，可以在META-INF/dubbo/internal/com.alibaba.dubbo.rpc.Filter文件内发现如下内容</p>
+<figure class="highlight stylus"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><code class="hljs stylus">validation=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.validation</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.ValidationFilter</span><br>cache=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.cache</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.CacheFilter</span><br>trace=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.protocol</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.TraceFilter</span><br>future=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.protocol</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.FutureFilter</span><br>echo=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.EchoFilter</span><br>generic=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.GenericFilter</span><br>genericimpl=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.GenericImplFilter</span><br>token=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.TokenFilter</span><br>accesslog=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.AccessLogFilter</span><br>activelimit=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.ActiveLimitFilter</span><br>classloader=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.ClassLoaderFilter</span><br>context=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.ContextFilter</span><br>consumercontext=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.ConsumerContextFilter</span><br><br>exception=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.ExceptionFilter</span><br><br>tpslimit=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.TpsLimitFilter</span><br>executelimit=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.ExecuteLimitFilter</span><br>deprecated=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.DeprecatedFilter</span><br>compatible=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.CompatibleFilter</span><br>timeout=com<span class="hljs-selector-class">.alibaba</span><span class="hljs-selector-class">.dubbo</span><span class="hljs-selector-class">.rpc</span><span class="hljs-selector-class">.filter</span><span class="hljs-selector-class">.TimeoutFilter</span><br><br></code></pre></td></tr></table></figure>
+
+<p>可以看到被我们隔离出来的那一行，即异常的拦截处理类实际上就是我们在上方查看的源码的实现类，那么只要在我们在项目中，在同一位置下，将我们自己写的类制定为异常处理器，在其中加入我们自己的业务，那么不就解决了exception不能正确返回的问题么</p>
+<p>首先复制原本的ExceptionFilter，因为Dubbo原本的异常逻辑是不会改变的，我们只需要加上对我们业务的拓展就好了，将需要返回的异常，统一继承一个BaseException，只要在代码中检测 instance of该异常就好，与Dubbo处理RpcException的方式相同，那么这里有同学可能会问了，为什么不直接继承RpcException呢，个人认为，在项目中，任何与业务相关的数据结构都应该掌握在开发者手中而不是直接继承三方包，否则对后续的拓展以及业务的安全性都是一种影响</p>
+
+            </div>
+            <hr>
+            <div>
+              <div class="post-metas mb-3">
+                
+                  <div class="post-meta mr-3">
+                    <i class="iconfont icon-category"></i>
+                    
+                      <a class="hover-with-bg" href="/categories/dubbo/">dubbo</a>
+                    
+                  </div>
+                
+                
+                  <div class="post-meta">
+                    <i class="iconfont icon-tags"></i>
+                    
+                      <a class="hover-with-bg" href="/tags/dubbo/">dubbo</a>
+                    
+                  </div>
+                
+              </div>
+              
+                <p class="note note-warning">
+                  
+                    本博客所有文章除特别声明外，均采用 <a target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" rel="nofollow noopener noopener">CC BY-SA 4.0 协议</a> ，转载请注明出处！
+                  
+                </p>
+              
+              
+                <div class="post-prevnext">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/rpc/">
+                        <span class="hidden-mobile">手把手教你撸一个RPC框架</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+          </article>
+        </div>
+      </div>
+    </div>
+    
+      <div class="d-none d-lg-block col-lg-2 toc-container" id="toc-ctn">
+        <div id="toc">
+  <p class="toc-header"><i class="iconfont icon-list"></i>&nbsp;目录</p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+      </div>
+    
+  </div>
+</div>
+
+<!-- Custom -->
+
+
+    
+
+    
+      <a id="scroll-top-button" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v"
+                 for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+
+    
+  </main>
+
+  <footer class="text-center mt-5 py-3">
+  <div class="footer-content">
+     <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+  </div>
+  
+
+  
+
+  
+</footer>
+
+
+  <!-- SCRIPTS -->
+  
+  <script  src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js" ></script>
+<script  src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+<!-- Plugins -->
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+  
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/tocbot@4.12.3/dist/tocbot.min.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@3.5.7/dist/jquery.fancybox.min.js" ></script>
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/anchor-js@4.3.1/anchor.min.js" ></script>
+
+
+
+  <script defer src="https://cdn.jsdelivr.net/npm/clipboard@2.0.8/dist/clipboard.min.js" ></script>
+
+
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+
+  <script  src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12/lib/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var title = document.getElementById('subtitle').title;
+      
+      typing(title)
+      
+    })(window, document);
+  </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 主题的启动项 保持在最底部 -->
+<script  src="/js/boot.js" ></script>
+
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"live2d-widget-model-hijiki"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>

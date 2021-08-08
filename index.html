@@ -182,6 +182,56 @@
     <article class="col-12 col-md-12 mx-auto index-info">
       <h1 class="index-header">
         
+        <a href="/dubbo-exception/" target="_self">
+          如何优雅的解决Dubbo远程调用自定义异常
+        </a>
+      </h1>
+
+      <p class="index-excerpt">
+        <a href="/dubbo-exception/" target="_self">
+          
+          
+            
+          
+          问题背景众所周知，在Dubbo远程调用中，如果远程服务出现了异常，那么不会将生产者产生的异常直接返回给消费者，而是重新包装了一个异常进行返回，而消费者只能得知触发的异常名称，在实际的业务开发中，这种设计方式是极为不合理的，无论是需要包装业务异常，或者需要触发报警，都无法得到更多准确的信息，对异常的定位也是十分困难的。所以我们进来就来优雅的解决这个问题。
+        </a>
+      </p>
+
+      <div class="index-btm post-metas">
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-date"></i>
+            <time datetime="2021-08-08 16:03" pubdate>
+              2021-08-08
+            </time>
+          </div>
+        
+        
+          <div class="post-meta mr-3">
+            <i class="iconfont icon-category"></i>
+            
+              <a href="/categories/dubbo/">dubbo</a>
+            
+          </div>
+        
+        
+          <div class="post-meta">
+            <i class="iconfont icon-tags"></i>
+            
+              <a href="/tags/dubbo/">dubbo</a>
+            
+          </div>
+        
+      </div>
+    </article>
+  </div>
+
+  <div class="row mx-auto index-card">
+    
+    
+    <article class="col-12 col-md-12 mx-auto index-info">
+      <h1 class="index-header">
+        
         <a href="/rpc/" target="_self">
           手把手教你撸一个RPC框架
         </a>
@@ -573,49 +623,6 @@ Netty is a NIO client server framework which enables quick and easy development 
             <i class="iconfont icon-category"></i>
             
               <a href="/categories/hexo/">hexo</a>
-            
-          </div>
-        
-        
-      </div>
-    </article>
-  </div>
-
-  <div class="row mx-auto index-card">
-    
-    
-    <article class="col-12 col-md-12 mx-auto index-info">
-      <h1 class="index-header">
-        
-        <a href="/countdownlatch-cyclicbarrier/" target="_self">
-          CountdownLatch和CyclicBarrier的区别使用场景与具体实现
-        </a>
-      </h1>
-
-      <p class="index-excerpt">
-        <a href="/countdownlatch-cyclicbarrier/" target="_self">
-          
-          
-            
-          
-          CountdownLatch和CyclicBarrier都属于线程同步的工具,不过具体的实现以及使用的情况有所不同,我们先来看看不同的使用情况
-        </a>
-      </p>
-
-      <div class="index-btm post-metas">
-        
-          <div class="post-meta mr-3">
-            <i class="iconfont icon-date"></i>
-            <time datetime="2019-10-30 15:17" pubdate>
-              2019-10-30
-            </time>
-          </div>
-        
-        
-          <div class="post-meta mr-3">
-            <i class="iconfont icon-category"></i>
-            
-              <a href="/categories/Java/">Java</a>
             
           </div>
         
