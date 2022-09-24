@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="在前一章节中,我们简单分析过aqs中加锁以及阻塞的流程,这一章我们来分析一下condition条件阻塞工具的实现 什么是conditioncondition是作为条件阻塞器,通过调用await,signal和signalAll方法来阻塞和唤醒线程,可以横向对比的是Object对象的wait,notify以及notifyAll方法,值得注意的是,与Object的wait需要跟synchronized">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AQS浅析（2）">
+<meta property="og:url" content="http://example.com/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/index.html">
+<meta property="og:site_name" content="小阿宅的技术博客">
+<meta property="og:description" content="在前一章节中,我们简单分析过aqs中加锁以及阻塞的流程,这一章我们来分析一下condition条件阻塞工具的实现 什么是conditioncondition是作为条件阻塞器,通过调用await,signal和signalAll方法来阻塞和唤醒线程,可以横向对比的是Object对象的wait,notify以及notifyAll方法,值得注意的是,与Object的wait需要跟synchronized">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-09-24T02:47:44.000Z">
+<meta property="article:modified_time" content="2022-09-24T02:57:18.371Z">
+<meta property="article:author" content="小阿宅">
+<meta property="article:tag" content="Java并发">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>AQS浅析（2） | 小阿宅的技术博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">小阿宅的技术博客</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="小阿宅">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="小阿宅的技术博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AQS浅析（2）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2022-09-24 10:47:44 / 修改时间：10:57:18" itemprop="dateCreated datePublished" datetime="2022-09-24T10:47:44+08:00">2022-09-24</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>在前一章节中,我们简单分析过aqs中加锁以及阻塞的流程,这一章我们来分析一下condition条件阻塞工具的实现</p>
+<h2 id="什么是condition"><a href="#什么是condition" class="headerlink" title="什么是condition"></a>什么是condition</h2><p>condition是作为条件阻塞器,通过调用await,signal和signalAll方法来阻塞和唤醒线程,可以横向对比的是Object对象的wait,notify以及notifyAll方法,值得注意的是,与Object的wait需要跟synchronized结合使用一样,condition也需要跟锁结合使用,比如ReenTrantLock中的newCondition方法就是创建一个全新的条件阻塞器,而调用await方法也需要通过lock进行加锁才可以正常使用.</p>
+<span id="more"></span>
+
+
+<h2 id="condition-await与Object-wait的区别"><a href="#condition-await与Object-wait的区别" class="headerlink" title="condition.await与Object.wait的区别"></a>condition.await与Object.wait的区别</h2><ul>
+<li>首先Object相关的阻塞方法都是通过本地方法实现的,而condition的阻塞和唤醒方法都是通过java调用来实现的,其次就是每个Object只能绑定一个阻塞器,即synchronized所绑定的对象,只有通过调用该对象的wait和notify方法才能实现阻塞以及唤醒,并且notify会在调用wait方法的线程中随机挑选一个唤醒</li>
+<li>而一个lock可以创建多个condition,例如ReentrantLock中的newCondition方法每次调用都会返回一个新的条件阻塞器,这样做的好处是,调用condition方法的signal只会唤醒当前condition调用await方法阻塞的线程,利用这种模式可以实现阻塞队列,如经典的ArrayBlockingQueue就是利用ReenTrantLock创建了两个condition控制队列空时的阻塞以及队列满时的阻塞</li>
+</ul>
+<h2 id="await方法的实现"><a href="#await方法的实现" class="headerlink" title="await方法的实现"></a>await方法的实现</h2><p>老规矩先上源码</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">public final void await() throws InterruptedException &#123;</span><br><span class="line">    		//检测线程是否中断</span><br><span class="line">            if (Thread.interrupted())</span><br><span class="line">                throw new InterruptedException();</span><br><span class="line">    		//添加一个condition的waiter</span><br><span class="line">            Node node = addConditionWaiter();</span><br><span class="line">    		//释放锁</span><br><span class="line">            int savedState = fullyRelease(node);</span><br><span class="line">    		//打断模式</span><br><span class="line">            int interruptMode = 0;</span><br><span class="line">            while (!isOnSyncQueue(node)) &#123;</span><br><span class="line">    		//进行循环如果当前线程不在同步队列中,则阻塞线程</span><br><span class="line">                LockSupport.park(this);</span><br><span class="line">                if ((interruptMode = checkInterruptWhileWaiting(node)) != 0)</span><br><span class="line">                    break;</span><br><span class="line">            &#125;</span><br><span class="line">    		//如果在同步队列中,则进行获取阻塞操作</span><br><span class="line">            if (acquireQueued(node, savedState) &amp;&amp; interruptMode != THROW_IE)</span><br><span class="line">                interruptMode = REINTERRUPT;</span><br><span class="line">            if (node.nextWaiter != null) // clean up if cancelled</span><br><span class="line">                //取消后续已经被取消的等待线程</span><br><span class="line">                unlinkCancelledWaiters();</span><br><span class="line">            if (interruptMode != 0)</span><br><span class="line">                reportInterruptAfterWait(interruptMode);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>await的实现并不难理解,而操作的Node节点与AQS中的node节点是一个对象,通过标记node的waitStatus变量来判断当前node的状态,我们再来看看addConditionWaiter的实现</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line">private Node addConditionWaiter() &#123;</span><br><span class="line">        Node t = lastWaiter;</span><br><span class="line">        //如果尾部的等待node被取消了,则遍历取消所有的被取消的节点</span><br><span class="line">        if (t != null &amp;&amp; t.waitStatus != Node.CONDITION) &#123;</span><br><span class="line">            unlinkCancelledWaiters();</span><br><span class="line">            t = lastWaiter;</span><br><span class="line">        &#125;</span><br><span class="line">    	//创建一个condition状态的node节点</span><br><span class="line">        Node node = new Node(Thread.currentThread(), Node.CONDITION);</span><br><span class="line">    	//如果尾结点是空证明是一个空队列,将头结点设置为当前节点,否则将当前节点插入当前尾节点的后面</span><br><span class="line">        if (t == null)</span><br><span class="line">            firstWaiter = node;</span><br><span class="line">        else</span><br><span class="line">            t.nextWaiter = node;</span><br><span class="line">        lastWaiter = node;</span><br><span class="line">        return node;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">private void unlinkCancelledWaiters() &#123;</span><br><span class="line">            Node t = firstWaiter;</span><br><span class="line">            Node trail = null;</span><br><span class="line">    		//遍历取消所有节点状态不是condition的节点</span><br><span class="line">            while (t != null) &#123;</span><br><span class="line">                Node next = t.nextWaiter;</span><br><span class="line">                if (t.waitStatus != Node.CONDITION) &#123;</span><br><span class="line">                    t.nextWaiter = null;</span><br><span class="line">                    if (trail == null)</span><br><span class="line">                        firstWaiter = next;</span><br><span class="line">                    else</span><br><span class="line">                        trail.nextWaiter = next;</span><br><span class="line">                    if (next == null)</span><br><span class="line">                        lastWaiter = trail;</span><br><span class="line">                &#125;</span><br><span class="line">                else</span><br><span class="line">                    trail = t;</span><br><span class="line">                t = next;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>在这个方法中,值得注意的是通过condition维护的队列,与aqs中排队的队列是两个完全不同的队列,condition的队列维护在condition对象中,通过firstWaiter和lastWaiter变量来维护队列的头与尾,我们继续往下看fullyRelease方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">final int fullyRelease(Node node) &#123;</span><br><span class="line">    boolean failed = true;</span><br><span class="line">    try &#123;</span><br><span class="line">        int savedState = getState();</span><br><span class="line">        if (release(savedState)) &#123;</span><br><span class="line">            failed = false; </span><br><span class="line">            return savedState;</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">            throw new IllegalMonitorStateException();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; finally &#123;</span><br><span class="line">        if (failed)</span><br><span class="line">            node.waitStatus = Node.CANCELLED;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>fullyRelease方法可见是直接释放当前独占锁,在java中目前只有ReenTrantLock以及ReentrantReadWriteLock,实现了newCondition方法,所以共享锁是不允许condition阻塞的,</p>
+<p>继续向下看isOnSyncQueue方法,顾名思义该方法是判断当前node是否在同步队列总</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">final boolean isOnSyncQueue(Node node) &#123;</span><br><span class="line">        if (node.waitStatus == Node.CONDITION || node.prev == null)</span><br><span class="line">            return false;</span><br><span class="line">        if (node.next != null) // If has successor, it must be on queue</span><br><span class="line">            return true;</span><br><span class="line">        return findNodeFromTail(node);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>首先是校验当前节点的状态,如果节点状态还是condition那么一定没有插入队列中,而同样node.prev前面节点如果为空自然是也没有插入队列的,后续判断node.next同样是判断后续有没有等待节点,这里值得注意的是,node.next是同步队列节点的下一个节点,而condition阻塞队列的节点为nextWaiter不要弄混了,</p>
+<p>如果这两步判断没有成功的话,说明当前节点的prev节点不为空,而next节点为空,而node.prev节点不为空,,但是还没有在队列上,因为有可能cas失败,所以要从尾部遍历一遍确定在没在节点中.</p>
+<p>如果在同步队列中则调用acquireQueued尝试获取锁或者排队,接下来就是判断是否打断等流程,后续不在赘述,接下来我们康康signal方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">public final void signal() &#123;</span><br><span class="line">    		//判断当前是否是独占模式获取锁,如果以非独占模式获取锁则抛出异常</span><br><span class="line">            if (!isHeldExclusively())</span><br><span class="line">                throw new IllegalMonitorStateException();</span><br><span class="line">            Node first = firstWaiter;</span><br><span class="line">            if (first != null)</span><br><span class="line">                doSignal(first);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">private void doSignal(Node first) &#123;</span><br><span class="line">            do &#123;</span><br><span class="line">                //把头结点后移并且判断是否为空,如果为空则将尾节点为空</span><br><span class="line">                if ( (firstWaiter = first.nextWaiter) == null)</span><br><span class="line">                    lastWaiter = null;</span><br><span class="line">                first.nextWaiter = null;</span><br><span class="line">                //将当前节点插入阻塞队列中</span><br><span class="line">            &#125; while (!transferForSignal(first) &amp;&amp;</span><br><span class="line">                     (first = firstWaiter) != null);</span><br><span class="line">        &#125;</span><br><span class="line">final boolean transferForSignal(Node node) &#123;</span><br><span class="line">        //如果换失败,则只有可能是被取消了</span><br><span class="line">        if (!compareAndSetWaitStatus(node, Node.CONDITION, 0))</span><br><span class="line">            return false;</span><br><span class="line">		//将当前线程插入队列,并返回node节点前面的节点,</span><br><span class="line">        Node p = enq(node);</span><br><span class="line">        int ws = p.waitStatus;</span><br><span class="line">    	//修改前一个节点的状态为signle以便被唤醒</span><br><span class="line">        if (ws &gt; 0 || !compareAndSetWaitStatus(p, ws, Node.SIGNAL))</span><br><span class="line">            //如果线程被取消了,或者将waitstatus修改失败的话,说明当前线程已经被取消了</span><br><span class="line">            LockSupport.unpark(node.thread);</span><br><span class="line">        return true;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>首先调用signal时一定是要以独占锁的模式调用,否则会抛出异常,然后将当前等待节点后移,并且将当前的节点插入阻塞队列中,不需要唤醒线程因为调用signal时一定是已经被某一线程获取了锁,而当调用release时会释放锁并且自动调用后续的锁</p>
+<p>那么这里有一个问题就是为什么会在这里调用一次unpark,就算不调用,等到下次唤醒的时候,也会清除掉被取消的节点,这里我查阅资料发现,这次唤醒主要是提升性能,在这里唤醒一次,将前面取消的节点都删除,以便下次唤醒不需要在删除节点.这里加不加这个唤醒逻辑上是一样的</p>
+<p>我们再来看看signalAll方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">public final void signalAll() &#123;</span><br><span class="line">      if (!isHeldExclusively())</span><br><span class="line">          throw new IllegalMonitorStateException();</span><br><span class="line">      Node first = firstWaiter;</span><br><span class="line">      if (first != null)</span><br><span class="line">          doSignalAll(first);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">private void doSignalAll(Node first) &#123;</span><br><span class="line">      lastWaiter = firstWaiter = null;</span><br><span class="line">      do &#123;</span><br><span class="line">          Node next = first.nextWaiter;</span><br><span class="line">          first.nextWaiter = null;</span><br><span class="line">          transferForSignal(first);</span><br><span class="line">          first = next;</span><br><span class="line">      &#125; while (first != null);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>这里实现与signal几乎相同,只不过一个是将first节点插入队列,而signalAll方法则是将后续队列全部插入同步队列中</p>
+<p>到这里我们就已经将condition的实现完全理清了,后续我们也会再分析利用condition来实现的同步阻塞队列ArrayBlockingQueue</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Java%E5%B9%B6%E5%8F%91/" rel="tag"># Java并发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/" rel="prev" title="AQS浅析（1）">
+      <i class="fa fa-chevron-left"></i> AQS浅析（1）
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/09/24/Spring%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8Fifelse/" rel="next" title="利用SpringBean管理来实现策略模式用以消灭项目中的if-else">
+      利用SpringBean管理来实现策略模式用以消灭项目中的if-else <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AFcondition"><span class="nav-number">1.</span> <span class="nav-text">什么是condition</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#condition-await%E4%B8%8EObject-wait%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-number">2.</span> <span class="nav-text">condition.await与Object.wait的区别</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#await%E6%96%B9%E6%B3%95%E7%9A%84%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.</span> <span class="nav-text">await方法的实现</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">小阿宅</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">小阿宅</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>

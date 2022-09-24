@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="什么是RPC调用在动手之前，首先要明确rpc调用的概念，RPC（Remote Procedure Call）远程过程调用，简单的理解是一个节点请求另一个节点提供的服务，简单来说就是无感知的调用远程服务的方法 举个例子，如果在A服务中实现了接口addCount(),进行计数+1，而B服务想调用A服务的这个接口，本地只需要通过函数指针来调用即可，而在两个服务中的调用就可以成为rpc调用">
+<meta property="og:type" content="article">
+<meta property="og:title" content="手把手教你撸一个RPC框架">
+<meta property="og:url" content="http://example.com/2022/09/24/myrpc/index.html">
+<meta property="og:site_name" content="小阿宅的技术博客">
+<meta property="og:description" content="什么是RPC调用在动手之前，首先要明确rpc调用的概念，RPC（Remote Procedure Call）远程过程调用，简单的理解是一个节点请求另一个节点提供的服务，简单来说就是无感知的调用远程服务的方法 举个例子，如果在A服务中实现了接口addCount(),进行计数+1，而B服务想调用A服务的这个接口，本地只需要通过函数指针来调用即可，而在两个服务中的调用就可以成为rpc调用">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://tva1.sinaimg.cn/large/007S8ZIlly1gho1gyovhaj30om0c0jse.jpg">
+<meta property="og:image" content="https://tva1.sinaimg.cn/large/007S8ZIlly1gho5q04143j30s00i6wi7.jpg">
+<meta property="article:published_time" content="2022-09-24T02:44:15.000Z">
+<meta property="article:modified_time" content="2022-09-24T02:58:13.567Z">
+<meta property="article:author" content="小阿宅">
+<meta property="article:tag" content="rpc">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://tva1.sinaimg.cn/large/007S8ZIlly1gho1gyovhaj30om0c0jse.jpg">
+
+<link rel="canonical" href="http://example.com/2022/09/24/myrpc/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>手把手教你撸一个RPC框架 | 小阿宅的技术博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">小阿宅的技术博客</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/myrpc/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="小阿宅">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="小阿宅的技术博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          手把手教你撸一个RPC框架
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2022-09-24 10:44:15 / 修改时间：10:58:13" itemprop="dateCreated datePublished" datetime="2022-09-24T10:44:15+08:00">2022-09-24</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="什么是RPC调用"><a href="#什么是RPC调用" class="headerlink" title="什么是RPC调用"></a>什么是RPC调用</h2><p>在动手之前，首先要明确rpc调用的概念，RPC（Remote Procedure Call）远程过程调用，简单的理解是一个节点请求另一个节点提供的服务，简单来说就是无感知的调用远程服务的方法</p>
+<p>举个例子，如果在A服务中实现了接口addCount(),进行计数+1，而B服务想调用A服务的这个接口，本地只需要通过函数指针来调用即可，而在两个服务中的调用就可以成为rpc调用</p>
+<span id="more"></span>
+
+
+
+<h2 id="实现RPC调用的流程"><a href="#实现RPC调用的流程" class="headerlink" title="实现RPC调用的流程"></a>实现RPC调用的流程</h2><h3 id="生产者"><a href="#生产者" class="headerlink" title="生产者"></a>生产者</h3><ol>
+<li>扫描所有的提供服务的Service并对应的注册到注册中心中，暴露服务出去，并且在本地根据服务名称缓存服务执行对象。</li>
+<li>开启本地服务接受消费者请求。</li>
+<li>在接收到请求后根据服务名称寻找对应的执行对象，并通过反射的方式调用对应的方法。</li>
+<li>将执行结果返回给消费者</li>
+</ol>
+<h3 id="消费者"><a href="#消费者" class="headerlink" title="消费者"></a>消费者</h3><ol>
+<li>对含有相应注解的字段注入代理对象。实现类似@Autowired的功能</li>
+<li>将调用的类名，方法，参数，封装成元数据，并从注册中心获取对应执行地址</li>
+<li>向执行地址发送相应数据，并接受返回结果</li>
+</ol>
+<p>总体来说一个完整的RPC调用流程基本上如上所述，接下来我们就来实现一个简易的RPC调用框架，当然是基于java的，在理论上rpc调用是不限语言的，比如gRPC或者Thrift都是可以跨语言执行的，而当当网二次开发的Dubbox也是可以跨语言的。</p>
+<h2 id="工具选型"><a href="#工具选型" class="headerlink" title="工具选型"></a>工具选型</h2><p>通过上述流程可以得知，在这个rpc框架中我们需要选择一个注册中心以及网络通讯框架，并且要选择通讯协议，在这个框架中我选择zookeeper做为注册中心，netty为网络通讯框架，通讯协议选择Http（别问，问就是好写）序列化协议选择JSON（别问，好写）。</p>
+<h2 id="项目创建"><a href="#项目创建" class="headerlink" title="项目创建"></a>项目创建</h2><p><a target="_blank" rel="noopener" href="https://tva1.sinaimg.cn/large/007S8ZIlly1gho1gyovhaj30om0c0jse.jpg"><img src="https://tva1.sinaimg.cn/large/007S8ZIlly1gho1gyovhaj30om0c0jse.jpg" alt="image-20200812150237339"></a></p>
+<p><a target="_blank" rel="noopener" href="https://tva1.sinaimg.cn/large/007S8ZIlly1gho1gyovhaj30om0c0jse.jpg">image-20200812150237339</a></p>
+<p>整项目结构如上图，common项目是通用的内容也就是框架的主题内容，consumer是消费者项目，producer是生产者项目，这两个项目都是springboot项目并且依赖common项目。</p>
+<h2 id="通用部分"><a href="#通用部分" class="headerlink" title="通用部分"></a>通用部分</h2><p>在common项目pom.xml中加入以下依赖</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">&lt;dependency&gt;</span><br><span class="line">           &lt;groupId&gt;com.alibaba&lt;/groupId&gt;</span><br><span class="line">           &lt;artifactId&gt;fastjson&lt;/artifactId&gt;</span><br><span class="line">           &lt;version&gt;1.2.47&lt;/version&gt;</span><br><span class="line">       &lt;/dependency&gt;</span><br><span class="line">       &lt;dependency&gt;</span><br><span class="line">           &lt;groupId&gt;org.apache.zookeeper&lt;/groupId&gt;</span><br><span class="line">           &lt;artifactId&gt;zookeeper&lt;/artifactId&gt;</span><br><span class="line">           &lt;version&gt;3.4.14&lt;/version&gt;</span><br><span class="line">           &lt;exclusions&gt;</span><br><span class="line">               &lt;exclusion&gt;</span><br><span class="line">                   &lt;groupId&gt;org.slf4j&lt;/groupId&gt;</span><br><span class="line">                   &lt;artifactId&gt;slf4j-log4j12&lt;/artifactId&gt;</span><br><span class="line">               &lt;/exclusion&gt;</span><br><span class="line">           &lt;/exclusions&gt;</span><br><span class="line"></span><br><span class="line">       &lt;/dependency&gt;</span><br><span class="line">       &lt;!-- https://mvnrepository.com/artifact/io.netty/netty-all --&gt;</span><br><span class="line">       &lt;dependency&gt;</span><br><span class="line">           &lt;groupId&gt;io.netty&lt;/groupId&gt;</span><br><span class="line">           &lt;artifactId&gt;netty-all&lt;/artifactId&gt;</span><br><span class="line">           &lt;version&gt;4.1.42.Final&lt;/version&gt;</span><br><span class="line">       &lt;/dependency&gt;</span><br><span class="line">       &lt;!-- https://mvnrepository.com/artifact/org.apache.curator/curator-framework --&gt;</span><br><span class="line">       &lt;dependency&gt;</span><br><span class="line">           &lt;groupId&gt;org.apache.curator&lt;/groupId&gt;</span><br><span class="line">           &lt;artifactId&gt;curator-recipes&lt;/artifactId&gt;</span><br><span class="line">           &lt;version&gt;4.2.0&lt;/version&gt;</span><br><span class="line">       &lt;/dependency&gt;</span><br><span class="line"> &lt;dependency&gt;</span><br><span class="line">           &lt;groupId&gt;cn.hutool&lt;/groupId&gt;</span><br><span class="line">           &lt;artifactId&gt;hutool-all&lt;/artifactId&gt;</span><br><span class="line">           &lt;version&gt;5.0.5&lt;/version&gt;</span><br><span class="line">       &lt;/dependency&gt;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>在common下创建config包，并创建RpcConfig类</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">@Component</span><br><span class="line">@ConfigurationProperties(prefix = &quot;myrpc&quot;)</span><br><span class="line">public class RpcConfig &#123;</span><br><span class="line"></span><br><span class="line">    private String localAddress;</span><br><span class="line"></span><br><span class="line">    private Integer  nettyPort;</span><br><span class="line">  </span><br><span class="line">    private String  basePackage;</span><br><span class="line"></span><br><span class="line">    public String getBasePackage() &#123;</span><br><span class="line">        return basePackage;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setBasePackage(String basePackage) &#123;</span><br><span class="line">        this.basePackage = basePackage;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public Integer getNettyPort() &#123;</span><br><span class="line">        return nettyPort;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setNettyPort(Integer nettyPort) &#123;</span><br><span class="line">        this.nettyPort = nettyPort;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public String getLocalAddress() &#123;</span><br><span class="line">        return localAddress;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setLocalAddress(String localAddress) &#123;</span><br><span class="line">        this.localAddress = localAddress;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>该配置类配置本地请求地址以及netty启动对应端口</p>
+<p>然后创建ZookeeperConfig类。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">@Component</span><br><span class="line">@ConfigurationProperties(prefix = &quot;myrpc.zookeeper&quot;)</span><br><span class="line">public class ZookeeperConfig &#123;</span><br><span class="line"></span><br><span class="line">    private String url;</span><br><span class="line"></span><br><span class="line">    private Integer sessionTimeOut;</span><br><span class="line"></span><br><span class="line">    public Integer getSessionTimeOut() &#123;</span><br><span class="line">        return sessionTimeOut;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setSessionTimeOut(Integer sessionTimeOut) &#123;</span><br><span class="line">        this.sessionTimeOut = sessionTimeOut;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public String getUrl() &#123;</span><br><span class="line">        return url;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setUrl(String url) &#123;</span><br><span class="line">        this.url = url;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>该类用于获取zookeeper相关的配置，然后在创建zookeeperRegister类，该类为zookeeper操作相关工具类</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">@Component</span><br><span class="line">public class ZookeeperRegister &#123;</span><br><span class="line">		//根节点</span><br><span class="line">    public static final String BASE_NODE = &quot;/myrpc/&quot;;</span><br><span class="line">    //缓存生产者数据</span><br><span class="line">    public static ConcurrentHashMap&lt;String, List&lt;String&gt;&gt; map = new ConcurrentHashMap&lt;&gt;();</span><br><span class="line"></span><br><span class="line">    @Autowired</span><br><span class="line">    private ZookeeperConfig zookeeperConfig;</span><br><span class="line"></span><br><span class="line">    private ZooKeeper zooKeeper = null;</span><br><span class="line">  </span><br><span class="line">		//获取生产者信息</span><br><span class="line">    public List&lt;String&gt; getProducer(Class&lt;?&gt; injectedType) throws Exception &#123;</span><br><span class="line">        List&lt;String&gt; producerList = map.get(injectedType.getTypeName());</span><br><span class="line">        if (CollectionUtil.isEmpty(producerList)) &#123;</span><br><span class="line">            producerList = this.getChildNode(injectedType.getTypeName());</span><br><span class="line">            if (CollectionUtil.isEmpty(producerList)) &#123;</span><br><span class="line">                throw new RuntimeException(&quot;没有对应生产者，执行失败&quot;);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        return producerList;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    @PostConstruct</span><br><span class="line">    public void init() throws Exception &#123;</span><br><span class="line">        zooKeeper = new ZooKeeper(zookeeperConfig.getUrl(), zookeeperConfig.getSessionTimeOut(), watchedEvent -&gt; &#123;</span><br><span class="line">            if(watchedEvent.getState().equals(Watcher.Event.KeeperState.SyncConnected))&#123;</span><br><span class="line">                try &#123;</span><br><span class="line">                  //链接完成后如果没有根节点则创建根节点</span><br><span class="line">  if(zooKeeper.exists(BASE_NODE.substring(0,BASE_NODE.lastIndexOf(&quot;/&quot;)),false)==null)&#123;</span><br><span class="line">                        zooKeeper.create(BASE_NODE.substring(0,BASE_NODE.lastIndexOf(&quot;/&quot;)),null,ZooDefs.Ids.OPEN_ACL_UNSAFE,CreateMode.PERSISTENT);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125; catch (KeeperException e) &#123;</span><br><span class="line">                    e.printStackTrace();</span><br><span class="line">                &#125; catch (InterruptedException e) &#123;</span><br><span class="line">                    e.printStackTrace();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            System.out.println(watchedEvent);&#125;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    public void createNode(String node,CreateMode createMode) throws Exception &#123;</span><br><span class="line">        if(!exists(node))&#123;</span><br><span class="line">            zooKeeper.create(BASE_NODE + node, null, ZooDefs.Ids.OPEN_ACL_UNSAFE, createMode);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public boolean exists(String node) throws KeeperException, InterruptedException &#123;</span><br><span class="line">        return zooKeeper.exists(BASE_NODE + node,false)!=null;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    private void resetProducer(String path, List&lt;String&gt; value) &#123;</span><br><span class="line">        String className = path.replaceFirst(BASE_NODE, &quot;&quot;);</span><br><span class="line">        map.put(className, value);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    public List&lt;String&gt; getChildNode(String path) throws KeeperException, InterruptedException &#123;</span><br><span class="line">        return zooKeeper.getChildren(BASE_NODE + path, watchedEvent -&gt; &#123;</span><br><span class="line">            System.out.println(JSON.toJSON(watchedEvent) + &quot;nodewatchEvent&quot;);</span><br><span class="line">            try &#123;</span><br><span class="line">              	//监听根节点并刷新本地缓存</span><br><span class="line">                resetProducer(path, getChildNode(path));</span><br><span class="line">            &#125; catch (Exception e) &#123;</span><br><span class="line">                e.printStackTrace();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>在该类中维护了一个Map，该map缓存了对应的生产者的数据，通过getProducer方法获取对应生产者的数据，而缓存的map的key为接口的全名。</p>
+<p>zookeeper相关的类就创建好了，接下来创建netty相关的，创建netty包并创建NettyServer类</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">@Component</span><br><span class="line">public class NettyServer &#123;</span><br><span class="line"></span><br><span class="line">    @Resource</span><br><span class="line">    private RpcConfig rpcConfig;</span><br><span class="line"></span><br><span class="line">    @PostConstruct</span><br><span class="line">    public void start() throws InterruptedException &#123;</span><br><span class="line"></span><br><span class="line">        EventLoopGroup bossGroup = new NioEventLoopGroup();</span><br><span class="line">        EventLoopGroup workGroup = new NioEventLoopGroup();</span><br><span class="line"></span><br><span class="line">        ServerBootstrap serverBootstrap = new ServerBootstrap();</span><br><span class="line"></span><br><span class="line">        serverBootstrap.group(bossGroup, workGroup)</span><br><span class="line">                .channel(NioServerSocketChannel.class)</span><br><span class="line">                .option(ChannelOption.SO_BACKLOG, 128)</span><br><span class="line">                .childOption(ChannelOption.SO_KEEPALIVE, true)</span><br><span class="line">                .childHandler(new ChannelInitializer&lt;SocketChannel&gt;() &#123;</span><br><span class="line">                    @Override</span><br><span class="line">                    protected void initChannel(SocketChannel socketChannel) throws Exception &#123;</span><br><span class="line">                                .addLast(new HttpServerCodec())</span><br><span class="line">                                .addLast(new HttpObjectAggregator(5 * 1024 * 1024))</span><br><span class="line">                                .addLast(new NettyServerHandler());</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;);</span><br><span class="line">        ChannelFuture cf = serverBootstrap.bind(rpcConfig.getNettyPort());</span><br><span class="line">        cf.channel().closeFuture();</span><br><span class="line">        System.out.println(&quot;服务启动完毕&quot;);</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>该类为netty启动类，随服务启动而启动，并绑定配置中的端口。并且创建NettyServerHandler类，该类用于处理所有到该服务中的请求</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">public class NettyServerHandler extends SimpleChannelInboundHandler&lt;FullHttpMessage&gt; &#123;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    @Override</span><br><span class="line">    protected void channelRead0(ChannelHandlerContext channelHandlerContext, FullHttpMessage msg) throws Exception &#123;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    @Override</span><br><span class="line">    public void channelReadComplete(ChannelHandlerContext ctx) throws Exception &#123;</span><br><span class="line">        ctx.flush();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    private void writeResponse(ChannelHandlerContext ctx, boolean keepAlive, String responseJson) &#123;</span><br><span class="line">        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, Unpooled.copiedBuffer(responseJson, CharsetUtil.UTF_8));  </span><br><span class="line">        response.headers().set(HttpHeaderNames.CONTENT_TYPE, &quot;text/html;charset=UTF-8&quot;);      </span><br><span class="line">        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, response.content().readableBytes());</span><br><span class="line">        if (keepAlive) &#123;</span><br><span class="line">            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);</span><br><span class="line">        &#125;</span><br><span class="line">        ctx.writeAndFlush(response);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>该类中的channelRead0方法是处理请求的方法，该方法我们后续填充。</p>
+<p>然后创建元数据MetaDataObject类，该类为生产者与消费者的通讯类，该类包含需要请求的类名，方法名以及参数列表</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">public class MetaDataObject implements Serializable &#123;</span><br><span class="line"></span><br><span class="line">    private Class&lt;?&gt; clazz;</span><br><span class="line"></span><br><span class="line">    private String  methodName;</span><br><span class="line"></span><br><span class="line">    private Object[] parameters;</span><br><span class="line"></span><br><span class="line">    public Object[] getParameters() &#123;</span><br><span class="line">        return parameters;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setParameters(Object[] parameters) &#123;</span><br><span class="line">        this.parameters = parameters;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public Class&lt;?&gt; getClazz() &#123;</span><br><span class="line">        return clazz;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setClazz(Class&lt;?&gt; clazz) &#123;</span><br><span class="line">        this.clazz = clazz;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public String getMethodName() &#123;</span><br><span class="line">        return methodName;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setMethodName(String methodName) &#123;</span><br><span class="line">        this.methodName = methodName;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>接下来创建RpcResponse类，该类为生产者返回调用结果的类</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">public class RpcResponse &#123;</span><br><span class="line"></span><br><span class="line">    public static final String SUCCESS=&quot;200&quot;;</span><br><span class="line"></span><br><span class="line">    private String code;</span><br><span class="line"></span><br><span class="line">    private Object content;</span><br><span class="line"></span><br><span class="line">    public String getCode() &#123;</span><br><span class="line">        return code;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setCode(String code) &#123;</span><br><span class="line">        this.code = code;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public Object getContent() &#123;</span><br><span class="line">        return content;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public void setContent(Object content) &#123;</span><br><span class="line">        this.content = content;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<h2 id="生产者部分"><a href="#生产者部分" class="headerlink" title="生产者部分"></a>生产者部分</h2><p>基础部分创建完毕后，开始创建生产者部分，在改部分中我们需要实现，在服务启动后，扫描所有需要暴露的服务类，并且将服务注册到注册中心中然后缓存到本地。并且要处理消费者发送的请求找到对应的服务进行反射调用</p>
+<p>首先需要创建标记服务的注解@RpcService，该注解标记的类视为暴露出的服务</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">@Documented</span><br><span class="line">@Retention(RetentionPolicy.RUNTIME)</span><br><span class="line">@Target(&#123;ElementType.TYPE&#125;)</span><br><span class="line">public @interface RpcService &#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>我们可以利用Spring的ApplicationListener，在容器初始化完成后，扫描所有对应的包，并且找到所有被@RpcService标记的类，并且将该类缓存并且暴露到注册中心中</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line">@Component</span><br><span class="line">public class MyApplicationListener implements ApplicationListener &#123;</span><br><span class="line">  </span><br><span class="line">    public static final Map producerHolder = new ConcurrentHashMap();</span><br><span class="line"></span><br><span class="line">    @Autowired</span><br><span class="line">    private RpcConfig rpcConfig;</span><br><span class="line"></span><br><span class="line">    @Autowired</span><br><span class="line">    private ZookeeperRegister zookeeperRegister;</span><br><span class="line"></span><br><span class="line">    @Override</span><br><span class="line">    public void onApplicationEvent(ApplicationEvent applicationEvent) &#123;</span><br><span class="line">        ResourcePatternResolver resourcePatternResolver = new PathMatchingResourcePatternResolver();</span><br><span class="line">        final String RESOURCE_PATTERN = &quot;/**/*.class&quot;;</span><br><span class="line">        try &#123;</span><br><span class="line">            String pattern = ResourcePatternResolver.CLASSPATH_ALL_URL_PREFIX + ClassUtils.convertClassNameToResourcePath(rpcConfig.getBasePackage())</span><br><span class="line">                    + RESOURCE_PATTERN;</span><br><span class="line">            Resource[] resources = resourcePatternResolver.getResources(pattern);</span><br><span class="line">            MetadataReaderFactory readerFactory = new CachingMetadataReaderFactory(resourcePatternResolver);</span><br><span class="line">            for (Resource resource : resources) &#123;</span><br><span class="line">                if (resource.isReadable()) &#123;</span><br><span class="line">                    MetadataReader reader = readerFactory.getMetadataReader(resource);</span><br><span class="line">                    //扫描到的class</span><br><span class="line">                    String className = reader.getClassMetadata().getClassName();</span><br><span class="line">                    Class&lt;?&gt; clazz = Class.forName(className);</span><br><span class="line">                    //判断是否有指定注解</span><br><span class="line">                    RpcService annotation = clazz.getAnnotation(RpcService.class);</span><br><span class="line">                    if (annotation != null &amp;&amp; producerHolder.get(className) == null) &#123;</span><br><span class="line">                        //这个类使用了自定义注解</span><br><span class="line">                        Class&lt;?&gt;[] face = clazz.getInterfaces();</span><br><span class="line">                        for (Class&lt;?&gt; aClass : face) &#123;</span><br><span class="line">                            producerHolder.put(aClass.getTypeName(), clazz.newInstance());</span><br><span class="line">                            registerProducer(aClass);</span><br><span class="line">                        &#125;</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; catch (Exception e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    public void registerProducer(Class&lt;?&gt; clazz) throws Exception &#123;</span><br><span class="line">        zookeeperRegister.createNode(clazz.getTypeName(), CreateMode.PERSISTENT);</span><br><span class="line">        zookeeperRegister.createNode(clazz.getTypeName()+&quot;/&quot;+rpcConfig.getLocalAddress(), CreateMode.EPHEMERAL);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>这样我们就将所有的服务缓存在producerHolder这个Map中，并且注册到zookeeper中，注册列表为 <code>根目录-&gt;类名-&gt;生产者地址</code>接下来我们创建处理消费者请求的部分，在刚刚创建的NettyServerHandler中的channelRead0方法中加入以下代码</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">@Override</span><br><span class="line">  protected void channelRead0(ChannelHandlerContext channelHandlerContext, FullHttpMessage msg) throws Exception &#123;</span><br><span class="line">      MetaDataObject metaData = JSON.parseObject(msg.content().toString(CharsetUtil.UTF_8),MetaDataObject.class);</span><br><span class="line">      Object handler = MyApplicationListener.producerHolder.get(metaData.getClazz().getTypeName());</span><br><span class="line">      Object result = ReflectUtil.invoke(handler, metaData.getMethodName(), metaData.getParameters());</span><br><span class="line">      RpcResponse response= new RpcResponse();</span><br><span class="line">      response.setCode(RpcResponse.SUCCESS);</span><br><span class="line">      response.setContent(result);</span><br><span class="line">      writeResponse(channelHandlerContext,true,JSON.toJSONString(response));</span><br><span class="line">  &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>在改方法中我们首先获取请求传入过来的数据，并且转换成对应的元数据对象，然后在producer中获取对应处理的handler并且通过反射的方式调用对应的方法并将返回值通过通道返回给消费者。</p>
+<p>至此 生产者的部分就创建完毕了。</p>
+<h2 id="消费者部分"><a href="#消费者部分" class="headerlink" title="消费者部分"></a>消费者部分</h2><p>在消费者部分，我们需要实现将代理自动注入到对应的service中并且在代理中通过网络请求的方式去消费者请求数据。</p>
+<p>首先需要创建自动注入的标记注解@RpcAutowired</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">@Documented</span><br><span class="line">@Retention(RetentionPolicy.RUNTIME)</span><br><span class="line">@Target(&#123;ElementType.FIELD&#125;)</span><br><span class="line">public @interface RpcAutowired &#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>然后创建RpcAutowiredAnnotationBeanPostProcesser用来进行自动注入的功能</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line">public class RpcAutowiredAnnotationBeanPostProcessor extends InstantiationAwareBeanPostProcessorAdapter &#123;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    @Override</span><br><span class="line">    public PropertyValues postProcessProperties(PropertyValues pvs, Object bean, String beanName) throws BeansException &#123;</span><br><span class="line"></span><br><span class="line">        try &#123;</span><br><span class="line">            InjectionMetadata metadata = new InjectionMetadata(bean.getClass(), getAnnotationFieldElement(bean.getClass(), beanName));</span><br><span class="line">            metadata.inject(bean, beanName, pvs);</span><br><span class="line">        &#125; catch (Throwable throwable) &#123;</span><br><span class="line">            throwable.printStackTrace();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">        return pvs;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    private List&lt;InjectionMetadata.InjectedElement&gt; getAnnotationFieldElement(Class&lt;?&gt; aClass, String beanName) &#123;</span><br><span class="line">        List&lt;InjectionMetadata.InjectedElement&gt; list = new ArrayList&lt;&gt;();</span><br><span class="line">        for (Field field : ReflectUtil.getFields(aClass)) &#123;</span><br><span class="line">            RpcAutowired auto = field.getAnnotation(RpcAutowired.class);</span><br><span class="line">            if (auto != null) &#123;</span><br><span class="line">                list.add(new AnnotatedFieldElement(field));</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        return list;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    public class AnnotatedFieldElement extends InjectionMetadata.InjectedElement &#123;</span><br><span class="line"></span><br><span class="line">        private final Field field;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">        private volatile Object bean;</span><br><span class="line"></span><br><span class="line">        protected AnnotatedFieldElement(Field field) &#123;</span><br><span class="line">            super(field, null);</span><br><span class="line">            this.field = field;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        @Override</span><br><span class="line">        protected void inject(Object bean, String beanName, PropertyValues pvs) throws Throwable &#123;</span><br><span class="line"></span><br><span class="line">            Class&lt;?&gt; injectedType = field.getType();</span><br><span class="line"></span><br><span class="line">            Object injectedObject = ProxyFactory.create(injectedType);</span><br><span class="line"></span><br><span class="line">            ReflectionUtils.makeAccessible(field);</span><br><span class="line"></span><br><span class="line">            field.set(bean,injectedObject);</span><br><span class="line"></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>该类继承了InstantiationAwareBeanPostProcessorAdapter，是Spring提供的拓展接口，在该接口实现了postProcessProperties，会在Spring初始化bean的时候调用。通过反射获取改类的所有Field如果该Field被@RpcAutowired注解，则加入AnnotatedFieldElement类，该类继承了InjectedElement类，spring在注入的时候会调用该类的inject方法对该类进行注入，我们在该类中利用反射注入我们创建的代理对象，实现自动注入，顺带一提，Spring的自动注入也是利用类似的手段完成的</p>
+<p>接下来创建代理工厂累ProxyFactory</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">@Component</span><br><span class="line">public class ProxyFactory  &#123;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    @Autowired</span><br><span class="line">    public ProxyFactory(ZookeeperRegister zookeeperRegister) &#123;</span><br><span class="line">        ProxyFactory.zookeeperRegister = zookeeperRegister;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    private static ZookeeperRegister zookeeperRegister;</span><br><span class="line"></span><br><span class="line">    public static Object create(Class&lt;?&gt; injectedType) &#123;</span><br><span class="line">        return Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(), new Class[]&#123;injectedType&#125;, (proxy, method, args) -&gt; &#123;</span><br><span class="line">            MetaDataObject metaDataObject = new MetaDataObject();</span><br><span class="line">            List&lt;String&gt; producerList = zookeeperRegister.getProducer(injectedType);</span><br><span class="line">            metaDataObject.setClazz(injectedType);</span><br><span class="line">            metaDataObject.setMethodName(method.getName());</span><br><span class="line">            metaDataObject.setParameters(args);</span><br><span class="line">            String result = HttpUtil.post(producerList.get(0), JSON.toJSONString(metaDataObject));</span><br><span class="line">            RpcResponse response = JSON.parseObject(result, RpcResponse.class);</span><br><span class="line">            System.out.println(JSON.toJSON(response));</span><br><span class="line">            if (!response.getCode().equals(RpcResponse.SUCCESS)) &#123;</span><br><span class="line">                throw new RuntimeException(&quot;远程调用失败&quot;);</span><br><span class="line">            &#125;else&#123;</span><br><span class="line">                return response.getContent();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;);</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>在该类中，利用jdk的动态代理创建一个实例，在该代理中，利用Http请求对生产者服务进行请求。</p>
+<p>然后创建CommonRegister类，将我们自己创建的RpcAutowiredAnnotationBeanPostProcessor注册到spring中使其生效</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">public class CommonRegister implements ImportBeanDefinitionRegistrar &#123;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    @Override</span><br><span class="line">    public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry beanDefinitionRegistry) &#123;</span><br><span class="line">        registerInfrastructureBean(beanDefinitionRegistry,&quot;RpcAutowiredAnnotationBeanPostProcessor&quot;, RpcAutowiredAnnotationBeanPostProcessor.class);</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    public static boolean registerInfrastructureBean(BeanDefinitionRegistry beanDefinitionRegistry,</span><br><span class="line">                                                     String beanName,</span><br><span class="line">                                                     Class&lt;?&gt; beanType) &#123;</span><br><span class="line">        boolean registered = false;</span><br><span class="line">        if (!beanDefinitionRegistry.containsBeanDefinition(beanName)) &#123;</span><br><span class="line">            RootBeanDefinition beanDefinition = new RootBeanDefinition(beanType);</span><br><span class="line">            beanDefinition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);</span><br><span class="line">            beanDefinitionRegistry.registerBeanDefinition(beanName, beanDefinition);</span><br><span class="line">            registered = true;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        return registered;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>该类继承了ImportBeanDefinitionRegistrar，该类只能通过@Import方式进行注入，会在spring启动时调用方法动态的注册bean，所以要创建一个BaseConfig类将该类注册到Spring中</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">@Configuration</span><br><span class="line">@Import(CommonRegister.class)</span><br><span class="line">public class BaseConfig &#123;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>至此消费者的部分也已经实现完毕了。该项目的部分实现，参考了dubbo的部分代码。</p>
+<h2 id="测试"><a href="#测试" class="headerlink" title="测试"></a>测试</h2><p>首先需要在common中创建一个BaseService并且提供一个test接口</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">public interface BaseService &#123;</span><br><span class="line">    String test(String msg);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>然后在生产者项目中创建一个实现类并且用RpcService注解</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">@RpcService</span><br><span class="line">public class BaseServiceImpl implements BaseService &#123;</span><br><span class="line">    @Override</span><br><span class="line">    public String test(String msg) &#123;</span><br><span class="line">        System.out.println(&quot;我接受到了远程调用的信息===================&gt;&quot;+msg);</span><br><span class="line">        return &quot;返回给消费者结果&quot;;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>然后在消费者项目中创建一个Controller</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">@RestController</span><br><span class="line">public class ConsumerController &#123;</span><br><span class="line"></span><br><span class="line">    @RpcAutowired</span><br><span class="line">    private BaseService baseService;</span><br><span class="line"></span><br><span class="line">    @RequestMapping(&quot;test&quot;)</span><br><span class="line">    public void test()&#123;</span><br><span class="line">        baseService.test(&quot;我是消费者&quot;);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>生产者项目的配置文件</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">myrpc:</span><br><span class="line">  zookeeper:</span><br><span class="line">    url: localhost:2181</span><br><span class="line">    sessionTimeOut: 10000</span><br><span class="line">  netty-port: 10000</span><br><span class="line">  local-address: localhost:10000</span><br><span class="line">  base-package: com.myrpc</span><br><span class="line">server:</span><br><span class="line">  port: 8980</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>消费者配置文件</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">myrpc:</span><br><span class="line">  zookeeper:</span><br><span class="line">    url: localhost:2181</span><br><span class="line">    sessionTimeOut: 10000</span><br><span class="line">  local-adderss: localhost:9999</span><br><span class="line">  netty-port: 9999</span><br><span class="line">  base-package: com.myrpc</span><br><span class="line">server:</span><br><span class="line">  port: 8979</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>将两个项目同时启动并且请求消费者的接口会得到如下结果</p>
+<p><a target="_blank" rel="noopener" href="https://tva1.sinaimg.cn/large/007S8ZIlly1gho5q04143j30s00i6wi7.jpg"><img src="https://tva1.sinaimg.cn/large/007S8ZIlly1gho5q04143j30s00i6wi7.jpg" alt="image-20200812172946676"></a></p>
+<p><a target="_blank" rel="noopener" href="https://tva1.sinaimg.cn/large/007S8ZIlly1gho5q04143j30s00i6wi7.jpg">image-20200812172946676</a></p>
+<p>至此整个简易RPC框架就已经完成了相信对RPC调用的流程也有了一定的了解。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/rpc/" rel="tag"># rpc</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/24/dubbo-exception/" rel="prev" title="如何优雅的解决Dubbo远程调用自定义异常">
+      <i class="fa fa-chevron-left"></i> 如何优雅的解决Dubbo远程调用自定义异常
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/09/24/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="next" title="threadLocal源码解析">
+      threadLocal源码解析 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AFRPC%E8%B0%83%E7%94%A8"><span class="nav-number">1.</span> <span class="nav-text">什么是RPC调用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%AE%9E%E7%8E%B0RPC%E8%B0%83%E7%94%A8%E7%9A%84%E6%B5%81%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">实现RPC调用的流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E8%80%85"><span class="nav-number">2.1.</span> <span class="nav-text">生产者</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85"><span class="nav-number">2.2.</span> <span class="nav-text">消费者</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%B7%A5%E5%85%B7%E9%80%89%E5%9E%8B"><span class="nav-number">3.</span> <span class="nav-text">工具选型</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%A1%B9%E7%9B%AE%E5%88%9B%E5%BB%BA"><span class="nav-number">4.</span> <span class="nav-text">项目创建</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%80%9A%E7%94%A8%E9%83%A8%E5%88%86"><span class="nav-number">5.</span> <span class="nav-text">通用部分</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%94%9F%E4%BA%A7%E8%80%85%E9%83%A8%E5%88%86"><span class="nav-number">6.</span> <span class="nav-text">生产者部分</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B6%88%E8%B4%B9%E8%80%85%E9%83%A8%E5%88%86"><span class="nav-number">7.</span> <span class="nav-text">消费者部分</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B5%8B%E8%AF%95"><span class="nav-number">8.</span> <span class="nav-text">测试</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">小阿宅</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">小阿宅</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>

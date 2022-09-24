@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="问题背景众所周知，在Dubbo远程调用中，如果远程服务出现了异常，那么不会将生产者产生的异常直接返回给消费者，而是重新包装了一个异常进行返回，而消费者只能得知触发的异常名称，在实际的业务开发中，这种设计方式是极为不合理的，无论是需要包装业务异常，或者需要触发报警，都无法得到更多准确的信息，对异常的定位也是十分困难的。所以我们进来就来优雅的解决这个问题。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="如何优雅的解决Dubbo远程调用自定义异常">
+<meta property="og:url" content="http://example.com/2022/09/24/dubbo-exception/index.html">
+<meta property="og:site_name" content="小阿宅的技术博客">
+<meta property="og:description" content="问题背景众所周知，在Dubbo远程调用中，如果远程服务出现了异常，那么不会将生产者产生的异常直接返回给消费者，而是重新包装了一个异常进行返回，而消费者只能得知触发的异常名称，在实际的业务开发中，这种设计方式是极为不合理的，无论是需要包装业务异常，或者需要触发报警，都无法得到更多准确的信息，对异常的定位也是十分困难的。所以我们进来就来优雅的解决这个问题。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-09-24T02:36:08.000Z">
+<meta property="article:modified_time" content="2022-09-24T02:42:58.763Z">
+<meta property="article:author" content="小阿宅">
+<meta property="article:tag" content="Dubbo">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2022/09/24/dubbo-exception/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>如何优雅的解决Dubbo远程调用自定义异常 | 小阿宅的技术博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">小阿宅的技术博客</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/dubbo-exception/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="小阿宅">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="小阿宅的技术博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          如何优雅的解决Dubbo远程调用自定义异常
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2022-09-24 10:36:08 / 修改时间：10:42:58" itemprop="dateCreated datePublished" datetime="2022-09-24T10:36:08+08:00">2022-09-24</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Dubbo/" itemprop="url" rel="index"><span itemprop="name">Dubbo</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h2><p>众所周知，在Dubbo远程调用中，如果远程服务出现了异常，那么不会将生产者产生的异常直接返回给消费者，而是重新包装了一个异常进行返回，而消费者只能得知触发的异常名称，在实际的业务开发中，这种设计方式是极为不合理的，无论是需要包装业务异常，或者需要触发报警，都无法得到更多准确的信息，对异常的定位也是十分困难的。所以我们进来就来优雅的解决这个问题。</p>
+<span id="more"></span>
+
+
+<h2 id="源码分析"><a href="#源码分析" class="headerlink" title="源码分析"></a>源码分析</h2><p>Dubbo的异常拦截在ExceptionFilter.class中 我们直接打开代码</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br></pre></td><td class="code"><pre><span class="line">@Override</span><br><span class="line"> public Result invoke(Invoker&lt;?&gt; invoker, Invocation invocation) throws RpcException &#123;</span><br><span class="line">     try &#123;</span><br><span class="line">         Result result = invoker.invoke(invocation);</span><br><span class="line">         if (result.hasException() &amp;&amp; GenericService.class != invoker.getInterface()) &#123;</span><br><span class="line">             // RPC调用发生了异常，且是非泛化实现</span><br><span class="line">             try &#123;</span><br><span class="line">                 Throwable exception = result.getException();</span><br><span class="line">                 // 1. 如果是checked异常，直接抛出</span><br><span class="line">                 if (!(exception instanceof RuntimeException) &amp;&amp; (exception instanceof Exception)) &#123;</span><br><span class="line">                     return result;</span><br><span class="line">                 &#125;</span><br><span class="line">                 // 2. 在方法签名上有声明，直接抛出</span><br><span class="line">                 Class&lt;? extends Throwable&gt; exceptionClass = exception.getClass();</span><br><span class="line">                 try &#123;</span><br><span class="line">                     Method method = invoker.getInterface().getMethod(invocation.getMethodName(), invocation.getParameterTypes());</span><br><span class="line">                     Class&lt;?&gt;[] exceptionTypes = method.getExceptionTypes();</span><br><span class="line">                     for (Class&lt;?&gt; exceptionType : exceptionTypes) &#123;</span><br><span class="line">                         if (exceptionClass.equals(exceptionType)) &#123;</span><br><span class="line">                             return result;</span><br><span class="line">                         &#125;</span><br><span class="line">                     &#125;</span><br><span class="line">                 &#125; catch (NoSuchMethodException e) &#123;</span><br><span class="line">                     return result;</span><br><span class="line">                 &#125;</span><br><span class="line"></span><br><span class="line">                 // 未在方法签名上定义的异常，在服务器端打印ERROR日志</span><br><span class="line">                 logger.error(&quot;Got unchecked and undeclared exception which called by &quot; + RpcContext.getContext().getRemoteHost()</span><br><span class="line">                         + &quot;. service: &quot; + invoker.getInterface().getName() + &quot;, method: &quot; + invocation.getMethodName()</span><br><span class="line">                         + &quot;, exception: &quot; + exceptionClass.getName() + &quot;: &quot; + exception.getMessage(), exception);</span><br><span class="line"></span><br><span class="line">                 // 3. 异常类和接口类在同一jar包里，直接抛出</span><br><span class="line">                 String serviceFile = ReflectUtils.getCodeBase(invoker.getInterface());</span><br><span class="line">                 String exceptionFile = ReflectUtils.getCodeBase(exceptionClass);</span><br><span class="line">                 if (serviceFile == null || exceptionFile == null || serviceFile.equals(exceptionFile)) &#123;</span><br><span class="line">                     return result;</span><br><span class="line">                 &#125;</span><br><span class="line">                 // 4. 是JDK自带的异常，直接抛出</span><br><span class="line">                 String exceptionClassName = exceptionClass.getName();</span><br><span class="line">                 if (exceptionClassName.startsWith(&quot;java.&quot;) || exceptionClassName.startsWith(&quot;javax.&quot;)) &#123;</span><br><span class="line">                     return result;</span><br><span class="line">                 &#125;</span><br><span class="line">                 // 5. 是框架自身的异常，直接抛出</span><br><span class="line">                 if (exception instanceof RpcException) &#123;</span><br><span class="line">                     return result;</span><br><span class="line">                 &#125;</span><br><span class="line">                 // 6. 否则，包装成RuntimeException抛给消费者</span><br><span class="line">                 return new RpcResult(new RuntimeException(StringUtils.toString(exception)));</span><br><span class="line">             &#125; catch (Throwable e) &#123;</span><br><span class="line">                 logger.warn(&quot;Fail to ExceptionFilter when called by &quot; + RpcContext.getContext().getRemoteHost()</span><br><span class="line">                         + &quot;. service: &quot; + invoker.getInterface().getName() + &quot;, method: &quot; + invocation.getMethodName()</span><br><span class="line">                         + &quot;, exception: &quot; + e.getClass().getName() + &quot;: &quot; + e.getMessage(), e);</span><br><span class="line">                 return result;</span><br><span class="line">             &#125;</span><br><span class="line">         &#125;</span><br><span class="line">         // RPC调用正常返回或泛化实现</span><br><span class="line">         return result;</span><br><span class="line">     &#125; catch (RuntimeException e) &#123;</span><br><span class="line">         logger.error(&quot;Got unchecked and undeclared exception which called by &quot; + RpcContext.getContext().getRemoteHost()</span><br><span class="line">                 + &quot;. service: &quot; + invoker.getInterface().getName() + &quot;, method: &quot; + invocation.getMethodName()</span><br><span class="line">                 + &quot;, exception: &quot; + e.getClass().getName() + &quot;: &quot; + e.getMessage(), e);</span><br><span class="line">         throw e;</span><br><span class="line">     &#125;</span><br><span class="line"> &#125;</span><br><span class="line"></span><br><span class="line">Copy</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，源码的注释已经写的很清晰了，在几种情况下dubbo不会进行异常的包装</p>
+<ol>
+<li>check异常</li>
+<li>已经被声明的异常</li>
+<li>异常和接口在同一包下</li>
+<li>jdk异常</li>
+<li>dubbo框架异常</li>
+</ol>
+<p>那么对应以上集中情况，我们对应的方案以及问题如下</p>
+<ol>
+<li>将业务异常修改为check异常——-&gt;不合理，RuntimeException不能不正确的修改为CheckException</li>
+<li>将异常声明在接口上———–&gt;不合理，需要所有消费端都进行修改，并且进行代码的兼容</li>
+<li>将所有异常与接口放在同一包下—————&gt;不合理，不符合代码分包逻辑</li>
+<li>将代码包名修改为java开头或者javax开头———-&gt;不合理，这就不多说了</li>
+<li>所有异常继承RpcException————-&gt;不合理，不应该莫名其妙继承一个三方包的异常，不方便后续拓展</li>
+</ol>
+<p>乍一看，好像所有的解决方案都被否决了，那么是不是我们就没有办法解决这个问题了呢，并不是，我们还有终极武器。——&gt;改源码！</p>
+<p>当然上面说的改源码，并不是直接改Dubbo jar包的源码，这种方式是严格被摒弃的，如果直接改jar包中的源码，那么如果后续更新包内容以后代码会出现各种问题，包括后续的维护也是难上加难</p>
+<p>那么怎么修改呢，Dubbo提供了一种拓展的机制，叫做SPI（Service Provider Interface）机制，即服务发现机制，Dubbo提供的SPI其实是在Java提供的SPI的一种拓展，SPI主要的功能是，可以动态的置顶运行的拓展，在META-INF包下，创建一个文件，将对应的包名与类全名写在改文件中，即可动态加载使用的实现类。</p>
+<p>Dubbo中默认也是基于该模式进行的实现注入，我们可以打开Dubbo的源码包。在META-INF包下可以看到，dubbo&#x2F;internal文件夹下，全部都是Dubbo基于SPI动态加载所有的实现方法，具体的加载过程本次就不展开讲了，后面可以单开文章讲解一下Java与Dubbo的SPI机制。</p>
+<p>我们直接进入本次的重点，可以在META-INF&#x2F;dubbo&#x2F;internal&#x2F;com.alibaba.dubbo.rpc.Filter文件内发现如下内容</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">validation=com.alibaba.dubbo.validation.filter.ValidationFilter</span><br><span class="line">cache=com.alibaba.dubbo.cache.filter.CacheFilter</span><br><span class="line">trace=com.alibaba.dubbo.rpc.protocol.dubbo.filter.TraceFilter</span><br><span class="line">future=com.alibaba.dubbo.rpc.protocol.dubbo.filter.FutureFilter</span><br><span class="line">echo=com.alibaba.dubbo.rpc.filter.EchoFilter</span><br><span class="line">generic=com.alibaba.dubbo.rpc.filter.GenericFilter</span><br><span class="line">genericimpl=com.alibaba.dubbo.rpc.filter.GenericImplFilter</span><br><span class="line">token=com.alibaba.dubbo.rpc.filter.TokenFilter</span><br><span class="line">accesslog=com.alibaba.dubbo.rpc.filter.AccessLogFilter</span><br><span class="line">activelimit=com.alibaba.dubbo.rpc.filter.ActiveLimitFilter</span><br><span class="line">classloader=com.alibaba.dubbo.rpc.filter.ClassLoaderFilter</span><br><span class="line">context=com.alibaba.dubbo.rpc.filter.ContextFilter</span><br><span class="line">consumercontext=com.alibaba.dubbo.rpc.filter.ConsumerContextFilter</span><br><span class="line"></span><br><span class="line">exception=com.alibaba.dubbo.rpc.filter.ExceptionFilter</span><br><span class="line"></span><br><span class="line">tpslimit=com.alibaba.dubbo.rpc.filter.TpsLimitFilter</span><br><span class="line">executelimit=com.alibaba.dubbo.rpc.filter.ExecuteLimitFilter</span><br><span class="line">deprecated=com.alibaba.dubbo.rpc.filter.DeprecatedFilter</span><br><span class="line">compatible=com.alibaba.dubbo.rpc.filter.CompatibleFilter</span><br><span class="line">timeout=com.alibaba.dubbo.rpc.filter.TimeoutFilter</span><br><span class="line"></span><br><span class="line">Copy</span><br></pre></td></tr></table></figure>
+
+<p>可以看到被我们隔离出来的那一行，即异常的拦截处理类实际上就是我们在上方查看的源码的实现类，那么只要在我们在项目中，在同一位置下，将我们自己写的类制定为异常处理器，在其中加入我们自己的业务，那么不就解决了exception不能正确返回的问题么</p>
+<p>首先复制原本的ExceptionFilter，因为Dubbo原本的异常逻辑是不会改变的，我们只需要加上对我们业务的拓展就好了，将需要返回的异常，统一继承一个BaseException，只要在代码中检测 instance of该异常就好，与Dubbo处理RpcException的方式相同，那么这里有同学可能会问了，为什么不直接继承RpcException呢，个人认为，在项目中，任何与业务相关的数据结构都应该掌握在开发者手中而不是直接继承三方包，否则对后续的拓展以及业务的安全性都是一种影响</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Dubbo/" rel="tag"># Dubbo</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item"></div>
+      <div class="post-nav-item">
+    <a href="/2022/09/24/myrpc/" rel="next" title="手把手教你撸一个RPC框架">
+      手把手教你撸一个RPC框架 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">问题背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90"><span class="nav-number">2.</span> <span class="nav-text">源码分析</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">小阿宅</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">小阿宅</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>

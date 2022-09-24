@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="CountdownLatch和CyclicBarrier都属于线程同步的工具,不过具体的实现以及使用的情况有所不同,我们先来看看不同的使用情况 CountdownLatch 使用场景顾名思义CountdownLatch可以当做一个计数器来使用,比如某线程需要等待其他几个线程都执行过某个时间节点后才能继续执行我们来模拟一个场景,某公司一共有十个人,门卫要等十个人都来上班以后,才可以休息,代码实现如下">
+<meta property="og:type" content="article">
+<meta property="og:title" content="countdownlatch">
+<meta property="og:url" content="http://example.com/2022/09/24/countdownlatch/index.html">
+<meta property="og:site_name" content="小阿宅的技术博客">
+<meta property="og:description" content="CountdownLatch和CyclicBarrier都属于线程同步的工具,不过具体的实现以及使用的情况有所不同,我们先来看看不同的使用情况 CountdownLatch 使用场景顾名思义CountdownLatch可以当做一个计数器来使用,比如某线程需要等待其他几个线程都执行过某个时间节点后才能继续执行我们来模拟一个场景,某公司一共有十个人,门卫要等十个人都来上班以后,才可以休息,代码实现如下">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2022-09-24T02:50:54.000Z">
+<meta property="article:modified_time" content="2022-09-24T02:55:38.718Z">
+<meta property="article:author" content="小阿宅">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2022/09/24/countdownlatch/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>countdownlatch | 小阿宅的技术博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">小阿宅的技术博客</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/countdownlatch/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="小阿宅">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="小阿宅的技术博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          countdownlatch
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2022-09-24 10:50:54 / 修改时间：10:55:38" itemprop="dateCreated datePublished" datetime="2022-09-24T10:50:54+08:00">2022-09-24</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>CountdownLatch和CyclicBarrier都属于线程同步的工具,不过具体的实现以及使用的情况有所不同,我们先来看看不同的使用情况</p>
+<h2 id="CountdownLatch-使用场景"><a href="#CountdownLatch-使用场景" class="headerlink" title="CountdownLatch 使用场景"></a>CountdownLatch 使用场景</h2><p>顾名思义CountdownLatch可以当做一个计数器来使用,比如某线程需要等待其他几个线程都执行过某个时间节点后才能继续执行<br>我们来模拟一个场景,某公司一共有十个人,门卫要等十个人都来上班以后,才可以休息,代码实现如下</p>
+<span id="more"></span>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">public static void main(String[] args) &#123;</span><br><span class="line">       final CountDownLatch latch = new CountDownLatch(10);</span><br><span class="line">       for (int i = 0; i &lt; 10; i++) &#123;</span><br><span class="line">           //lambda中只能只用final的变量</span><br><span class="line">           final int times = i;</span><br><span class="line">           new Thread(() -&gt; &#123;</span><br><span class="line">               try &#123;</span><br><span class="line">                   System.out.println(&quot;子线程&quot; + Thread.currentThread().getName() + &quot;正在赶路&quot;);</span><br><span class="line">                   Thread.sleep(1000 * times);</span><br><span class="line">                   System.out.println(&quot;子线程&quot; + Thread.currentThread().getName() + &quot;到公司了&quot;);</span><br><span class="line">                   //调用latch的countDown方法使计数器-1</span><br><span class="line">                   latch.countDown();</span><br><span class="line">                   System.out.println(&quot;子线程&quot; + Thread.currentThread().getName() + &quot;开始工作&quot;);</span><br><span class="line">               &#125; catch (InterruptedException e) &#123;</span><br><span class="line">                   e.printStackTrace();</span><br><span class="line">               &#125;</span><br><span class="line">           &#125;).start();</span><br><span class="line">       &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">       try &#123;</span><br><span class="line">           System.out.println(&quot;门卫等待员工上班中...&quot;);</span><br><span class="line">           //主线程阻塞等待计数器归零</span><br><span class="line">           latch.await();</span><br><span class="line">           System.out.println(&quot;员工都来了,门卫去休息了&quot;);</span><br><span class="line">       &#125; catch (InterruptedException e) &#123;</span><br><span class="line">           e.printStackTrace();</span><br><span class="line">       &#125;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>运行后结果如下</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">子线程Thread-0正在赶路</span><br><span class="line">子线程Thread-2正在赶路</span><br><span class="line">子线程Thread-0到公司了</span><br><span class="line">子线程Thread-0开始工作</span><br><span class="line">子线程Thread-1正在赶路</span><br><span class="line">门卫等待员工上班中...</span><br><span class="line">子线程Thread-4正在赶路</span><br><span class="line">子线程Thread-9正在赶路</span><br><span class="line">子线程Thread-5正在赶路</span><br><span class="line">子线程Thread-6正在赶路</span><br><span class="line">子线程Thread-7正在赶路</span><br><span class="line">子线程Thread-8正在赶路</span><br><span class="line">子线程Thread-3正在赶路</span><br><span class="line">子线程Thread-1到公司了</span><br><span class="line">子线程Thread-1开始工作</span><br><span class="line">子线程Thread-2到公司了</span><br><span class="line">子线程Thread-2开始工作</span><br><span class="line">子线程Thread-3到公司了</span><br><span class="line">子线程Thread-3开始工作</span><br><span class="line">子线程Thread-4到公司了</span><br><span class="line">子线程Thread-4开始工作</span><br><span class="line">子线程Thread-5到公司了</span><br><span class="line">子线程Thread-5开始工作</span><br><span class="line">子线程Thread-6到公司了</span><br><span class="line">子线程Thread-6开始工作</span><br><span class="line">子线程Thread-7到公司了</span><br><span class="line">子线程Thread-7开始工作</span><br><span class="line">子线程Thread-8到公司了</span><br><span class="line">子线程Thread-8开始工作</span><br><span class="line">子线程Thread-9到公司了</span><br><span class="line">子线程Thread-9开始工作</span><br><span class="line">员工都来了,门卫去休息了</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以看到子线程并没有因为调用latch.countDown而阻塞,会继续进行该做的工作,只是通知计数器-1,即完成了我们如上说的场景,只需要在所有进程都进行到某一节点后才会执行被阻塞的进程.如果我们想要多个线程在同一时间进行就要用到CyclicBarrier了</p>
+<h2 id="CyclicBarrier-使用场景"><a href="#CyclicBarrier-使用场景" class="headerlink" title="CyclicBarrier 使用场景"></a>CyclicBarrier 使用场景</h2><p>我们重新模拟一个新的场景,就用已经被说烂的跑步场景吧,十名运动员各自准备比赛,需要等待所有运动员都准备好以后,裁判才能说开始然后所有运动员一起跑,代码实现如下</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">public static void main(String[] args) &#123;</span><br><span class="line">     final CyclicBarrier cyclicBarrier = new CyclicBarrier(10,()-&gt;&#123;</span><br><span class="line">         System.out.println(&quot;所有人都准备好了裁判开始了&quot;);</span><br><span class="line">     &#125;);</span><br><span class="line">     for (int i = 0; i &lt; 10; i++) &#123;</span><br><span class="line">         //lambda中只能只用final的变量</span><br><span class="line">         final int times = i;</span><br><span class="line">         new Thread(() -&gt; &#123;</span><br><span class="line">             try &#123;</span><br><span class="line">                 System.out.println(&quot;子线程&quot; + Thread.currentThread().getName() + &quot;正在准备&quot;);</span><br><span class="line">                 Thread.sleep(1000 * times);</span><br><span class="line">                 System.out.println(&quot;子线程&quot; + Thread.currentThread().getName() + &quot;准备好了&quot;);</span><br><span class="line">                 cyclicBarrier.await();</span><br><span class="line">                 System.out.println(&quot;子线程&quot; + Thread.currentThread().getName() + &quot;开始跑了&quot;);</span><br><span class="line">             &#125; catch (InterruptedException e) &#123;</span><br><span class="line">                 e.printStackTrace();</span><br><span class="line">             &#125; catch (BrokenBarrierException e) &#123;</span><br><span class="line">                 e.printStackTrace();</span><br><span class="line">             &#125;</span><br><span class="line">         &#125;).start();</span><br><span class="line">     &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"> &#125;</span><br><span class="line"></span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>执行结果如下</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">子线程Thread-0正在准备</span><br><span class="line">子线程Thread-2正在准备</span><br><span class="line">子线程Thread-1正在准备</span><br><span class="line">子线程Thread-3正在准备</span><br><span class="line">子线程Thread-4正在准备</span><br><span class="line">子线程Thread-0准备好了</span><br><span class="line">子线程Thread-5正在准备</span><br><span class="line">子线程Thread-6正在准备</span><br><span class="line">子线程Thread-7正在准备</span><br><span class="line">子线程Thread-8正在准备</span><br><span class="line">子线程Thread-9正在准备</span><br><span class="line">子线程Thread-1准备好了</span><br><span class="line">子线程Thread-2准备好了</span><br><span class="line">子线程Thread-3准备好了</span><br><span class="line">子线程Thread-4准备好了</span><br><span class="line">子线程Thread-5准备好了</span><br><span class="line">子线程Thread-6准备好了</span><br><span class="line">子线程Thread-7准备好了</span><br><span class="line">子线程Thread-8准备好了</span><br><span class="line">子线程Thread-9准备好了</span><br><span class="line">所有人都准备好了裁判开始了</span><br><span class="line">子线程Thread-9开始跑了</span><br><span class="line">子线程Thread-0开始跑了</span><br><span class="line">子线程Thread-2开始跑了</span><br><span class="line">子线程Thread-1开始跑了</span><br><span class="line">子线程Thread-7开始跑了</span><br><span class="line">子线程Thread-6开始跑了</span><br><span class="line">子线程Thread-5开始跑了</span><br><span class="line">子线程Thread-4开始跑了</span><br><span class="line">子线程Thread-3开始跑了</span><br><span class="line">子线程Thread-8开始跑了</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以看到所有线程在其他线程没有准备好之前都在被阻塞中,等到所有线程都准备好了才继续执行<br>我们在创建CyclicBarrier对象时传入了一个方法,当调用CyclicBarrier的await方法后,当前线程会被阻塞等到所有线程都调用了await方法后 调用传入CyclicBarrier的方法,然后让所有的被阻塞的线程一起运行</p>
+<p>应用场景我们说完了,接下来看看两个工具的具体实现</p>
+<h2 id="CountdownLatch-底层实现"><a href="#CountdownLatch-底层实现" class="headerlink" title="CountdownLatch 底层实现"></a>CountdownLatch 底层实现</h2><p>我们先来看看CountdownLatch的构造方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">public CountDownLatch(int count) &#123;</span><br><span class="line">    if (count &lt; 0) throw new IllegalArgumentException(&quot;count &lt; 0&quot;);</span><br><span class="line">    this.sync = new Sync(count);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>首先保证了count一定要大于零,然后初始化了一个Sync对象,在看看这个Sync对象是个什么</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">private static final class Sync extends AbstractQueuedSynchronizer &#123;</span><br><span class="line">        private static final long serialVersionUID = 4982264981922014374L;</span><br><span class="line"></span><br><span class="line">        Sync(int count) &#123;</span><br><span class="line">            setState(count);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        int getCount() &#123;</span><br><span class="line">            return getState();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        protected int tryAcquireShared(int acquires) &#123;</span><br><span class="line">            return (getState() == 0) ? 1 : -1;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        protected boolean tryReleaseShared(int releases) &#123;</span><br><span class="line">            // Decrement count; signal when transition to zero</span><br><span class="line">            for (;;) &#123;</span><br><span class="line">                int c = getState();</span><br><span class="line">                if (c == 0)</span><br><span class="line">                    return false;</span><br><span class="line">                int nextc = c-1;</span><br><span class="line">                if (compareAndSetState(c, nextc))</span><br><span class="line">                    return nextc == 0;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>Sync是CountdownLatch的静态内部类,继承了AbstractQueuedSynchronizer(即AQS,提供了一种实现阻塞锁和一系列依赖FIFO等待队列的同步器的工具,回头单讲)抽象类, 在Sync的构造方法中,调用了setState方法,可以视作初始化了一个标记来记录当前计数器的数量</p>
+<p>我们来看CountdownLatch的两个核心方法,await和countdown,先来看await</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">public void await() throws InterruptedException &#123;</span><br><span class="line">    //可以视作将线程阻塞</span><br><span class="line">    sync.acquireSharedInterruptibly(1);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>await调用的是AQS的方法,可以视作阻塞线程,具体实现在分析AQS的章节中展开<br>再来看看countdown方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">public void countDown() &#123;</span><br><span class="line">    sync.releaseShared(1);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>调用了sync的一个方法,再来看看这个方法的实现</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">public final boolean releaseShared(int arg) &#123;</span><br><span class="line">     if (tryReleaseShared(arg)) &#123;</span><br><span class="line">         doReleaseShared();</span><br><span class="line">         return true;</span><br><span class="line">     &#125;</span><br><span class="line">     return false;</span><br><span class="line"> &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>再来看这个tryReleaseShared方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">protected boolean tryReleaseShared(int releases) &#123;</span><br><span class="line">           for (;;) &#123;</span><br><span class="line">               //获取标记位</span><br><span class="line">               int c = getState();</span><br><span class="line">               if (c == 0)</span><br><span class="line">                   return false;</span><br><span class="line">               int nextc = c-1;</span><br><span class="line">               //用cas的方式更新标记位</span><br><span class="line">               if (compareAndSetState(c, nextc))</span><br><span class="line">                   return nextc == 0;</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以看到在调用tryReleaseShared实际上是将标记位-1并且返回标记位是否为0,如果标记位为0 那么调用的doReleaseShared可以视作将阻塞的线程放行,这样整个的流程就通了</p>
+<h2 id="CyclicBarrier-底层实现"><a href="#CyclicBarrier-底层实现" class="headerlink" title="CyclicBarrier 底层实现"></a>CyclicBarrier 底层实现</h2><p>老规矩先看构造方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">    public CyclicBarrier(int parties, Runnable barrierAction) &#123;</span><br><span class="line">        if (parties &lt;= 0) throw new IllegalArgumentException();</span><br><span class="line">        this.parties = parties;</span><br><span class="line">        this.count = parties;</span><br><span class="line">        this.barrierCommand = barrierAction;</span><br><span class="line">    &#125;</span><br><span class="line">```    </span><br><span class="line">这边传入了两个对象简单的记录了一下存值,我们直接查看一下关键的await方法</span><br><span class="line"></span><br><span class="line">public int await() throws InterruptedException, BrokenBarrierException &#123;</span><br><span class="line">    try &#123;</span><br><span class="line">        return dowait(false, 0L);</span><br><span class="line">    &#125; catch (TimeoutException toe) &#123;</span><br><span class="line">        throw new Error(toe); // cannot happen</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">再来看dowait的实现</span><br><span class="line"></span><br><span class="line">/** The lock for guarding barrier entry */</span><br><span class="line">private final ReentrantLock lock = new ReentrantLock();</span><br><span class="line">/** Condition to wait on until tripped */</span><br><span class="line">private final Condition trip = lock.newCondition();</span><br><span class="line">/** 省略部分代码 **/</span><br></pre></td></tr></table></figure>
+
+<p>private int dowait(boolean timed, long nanos)<br>throws InterruptedException, BrokenBarrierException,<br>TimeoutException {<br>final ReentrantLock lock &#x3D; this.lock;<br>lock.lock();<br>try {<br>final Generation g &#x3D; generation;<br>&#x2F;&#x2F;判断是否被打断<br>if (g.broken)<br>throw new BrokenBarrierException();</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line">        if (Thread.interrupted()) &#123;</span><br><span class="line">            breakBarrier();</span><br><span class="line">            throw new InterruptedException();</span><br><span class="line">        &#125;</span><br><span class="line">        //将计数器-1 即在构造方法中赋值的count</span><br><span class="line">        int index = --count;</span><br><span class="line">        if (index == 0) &#123;  // tripped</span><br><span class="line">        //如果所有的线程都执行完毕即count=0时</span><br><span class="line">            boolean ranAction = false;</span><br><span class="line">            try &#123;</span><br><span class="line">                //执行传入的方法</span><br><span class="line">                final Runnable command = barrierCommand;</span><br><span class="line">                if (command != null)</span><br><span class="line">                    command.run();</span><br><span class="line">                ranAction = true;</span><br><span class="line">                //唤醒所有线程</span><br><span class="line">                nextGeneration();</span><br><span class="line">                return 0;</span><br><span class="line">            &#125; finally &#123;</span><br><span class="line">                if (!ranAction)</span><br><span class="line">                    breakBarrier();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        //如果count没有到0那么阻塞当前线程</span><br><span class="line">        for (;;) &#123;</span><br><span class="line">            try &#123;</span><br><span class="line">                if (!timed)</span><br><span class="line">                    trip.await();</span><br><span class="line">                else if (nanos &gt; 0L)</span><br><span class="line">                    nanos = trip.awaitNanos(nanos);</span><br><span class="line">            &#125; catch (InterruptedException ie) &#123;</span><br><span class="line">                if (g == generation &amp;&amp; ! g.broken) &#123;</span><br><span class="line">                    breakBarrier();</span><br><span class="line">                    throw ie;</span><br><span class="line">                &#125; else &#123;</span><br><span class="line">                    // We&#x27;re about to finish waiting even if we had not</span><br><span class="line">                    // been interrupted, so this interrupt is deemed to</span><br><span class="line">                    // &quot;belong&quot; to subsequent execution.</span><br><span class="line">                    Thread.currentThread().interrupt();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            if (g.broken)</span><br><span class="line">                throw new BrokenBarrierException();</span><br><span class="line"></span><br><span class="line">            if (g != generation)</span><br><span class="line">                return index;</span><br><span class="line"></span><br><span class="line">            if (timed &amp;&amp; nanos &lt;= 0L) &#123;</span><br><span class="line">                breakBarrier();</span><br><span class="line">                throw new TimeoutException();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; finally &#123;</span><br><span class="line">        lock.unlock();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>`&#96;&#96;<br>从代码中可以看到,CyclicBarrier是利用Lock的condition方法来进行线程的阻塞和唤醒,类似Object.wait()和notifyAll()在count不为0时阻塞,在count&#x3D;0时唤醒所有线程</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>1,CountdownLatch适用于所有线程通过某一点后通知方法,而CyclicBarrier则适合让所有线程在同一点同时执行<br>2,CountdownLatch利用继承AQS的共享锁来进行线程的通知,利用CAS来进行–,而CyclicBarrier则利用ReentrantLock的Condition来阻塞和通知线程</p>
+<p>感谢阅读</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/24/nettyWebSocket/" rel="prev" title="nettyWebSocket">
+      <i class="fa fa-chevron-left"></i> nettyWebSocket
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/09/24/hexo/" rel="next" title="如何正确的使用hexo+github+next部署自己的博客">
+      如何正确的使用hexo+github+next部署自己的博客 <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#CountdownLatch-%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">CountdownLatch 使用场景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CyclicBarrier-%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-number">2.</span> <span class="nav-text">CyclicBarrier 使用场景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CountdownLatch-%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0"><span class="nav-number">3.</span> <span class="nav-text">CountdownLatch 底层实现</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#CyclicBarrier-%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0"><span class="nav-number">4.</span> <span class="nav-text">CyclicBarrier 底层实现</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%80%BB%E7%BB%93"><span class="nav-number">5.</span> <span class="nav-text">总结</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">小阿宅</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">小阿宅</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>

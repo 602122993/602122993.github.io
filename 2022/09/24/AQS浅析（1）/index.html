@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.3.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="什么是AQS所谓AQS，指的是AbstractQueuedSynchronizer，它提供了一种实现阻塞锁和一系列依赖FIFO等待队列的同步器的框架，ReentrantLock、Semaphore、ReentrantReadWriteLock,CountDownLatch等并发类均是基于AQS来实现的，具体用法是通过继承AQS实现其模板方法，然后将子类作为同步组件的内部类。 AQS具体的实现方式为">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AQS浅析（1）">
+<meta property="og:url" content="http://example.com/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/index.html">
+<meta property="og:site_name" content="小阿宅的技术博客">
+<meta property="og:description" content="什么是AQS所谓AQS，指的是AbstractQueuedSynchronizer，它提供了一种实现阻塞锁和一系列依赖FIFO等待队列的同步器的框架，ReentrantLock、Semaphore、ReentrantReadWriteLock,CountDownLatch等并发类均是基于AQS来实现的，具体用法是通过继承AQS实现其模板方法，然后将子类作为同步组件的内部类。 AQS具体的实现方式为">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://image-xiaoazhai.oss-cn-hangzhou.aliyuncs.com/blog/acquire1.png">
+<meta property="article:published_time" content="2022-09-24T02:47:15.000Z">
+<meta property="article:modified_time" content="2022-09-24T02:57:33.367Z">
+<meta property="article:author" content="小阿宅">
+<meta property="article:tag" content="Java并发">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://image-xiaoazhai.oss-cn-hangzhou.aliyuncs.com/blog/acquire1.png">
+
+<link rel="canonical" href="http://example.com/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>AQS浅析（1） | 小阿宅的技术博客</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">小阿宅的技术博客</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="user fa-fw"></i>关于</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="archive fa-fw"></i>归档</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="小阿宅">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="小阿宅的技术博客">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AQS浅析（1）
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2022-09-24 10:47:15 / 修改时间：10:57:33" itemprop="dateCreated datePublished" datetime="2022-09-24T10:47:15+08:00">2022-09-24</time>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h2 id="什么是AQS"><a href="#什么是AQS" class="headerlink" title="什么是AQS"></a>什么是AQS</h2><p>所谓AQS，指的是AbstractQueuedSynchronizer，它提供了一种实现阻塞锁和一系列依赖FIFO等待队列的同步器的框架，ReentrantLock、Semaphore、ReentrantReadWriteLock,CountDownLatch等并发类均是基于AQS来实现的，具体用法是通过继承AQS实现其模板方法，然后将子类作为同步组件的内部类。</p>
+<p>AQS具体的实现方式为通过维护一个state变量,通过调用对应实现的方法来操作state并且根据state的状态来判断是否需要加锁,接下来我们来阅读源码看看AQS中的具体实现</p>
+<span id="more"></span>
+
+
+<h2 id="AQS中的重要变量与方法"><a href="#AQS中的重要变量与方法" class="headerlink" title="AQS中的重要变量与方法"></a>AQS中的重要变量与方法</h2><h3 id="内部类Node"><a href="#内部类Node" class="headerlink" title="内部类Node"></a>内部类Node</h3><p>内部类node即为FIFO的等待队列的具体实现,在线程需要阻塞排队时,便会创建一个node节点对象,该对象持有的变量如下</p>
+<ul>
+<li>waitStatus: 该变量控制当前node的等待状态,枚举如下<ul>
+<li>CALCLED 取消状态,当线程排队被取消时,将节点改为当前状态</li>
+<li>SIGNAL 就绪状态,表示后面的线程需要被接触阻塞</li>
+<li>CONDITION 等待状态,正在等待后续的condition</li>
+<li>PROPAGATE 共享锁的状态下,被多次唤醒状态</li>
+</ul>
+</li>
+<li>prev,next: 构成队列时需要维护的前后节点的引用</li>
+<li>thread: 持有该节点的线程</li>
+<li>nextWaiter:一个标志该节点是独占节点或者共享节点的标志</li>
+</ul>
+<h3 id="state变量及其set方法get方法compareAndSetState方法"><a href="#state变量及其set方法get方法compareAndSetState方法" class="headerlink" title="state变量及其set方法get方法compareAndSetState方法"></a>state变量及其set方法get方法compareAndSetState方法</h3><p>state变量为AQS的核心,所有是否需要加锁的判断以及锁的状态都用改变量来维护,修改与获取变量时需要调用对应的setget方法,该方法是不保证线程安全的.而compareAndSetState方法则是通过cas的方式来修改state变量,是线程安全的修改state变量的方式</p>
+<h3 id="tryAcquire以及acquire方法"><a href="#tryAcquire以及acquire方法" class="headerlink" title="tryAcquire以及acquire方法"></a>tryAcquire以及acquire方法</h3><p>tryAcquire方法即尝试以独占锁的方式尝试获取锁,如果获取成功则返回true否则返回false,tryAcquire方法在AQS抽象类中是没有具体的实现的,需要开发者根据自己的需求自定义实现tryAcquire并且定义获取锁的逻辑,后续可以根据ReenTrantLock源码进行分析</p>
+<p>acquire方法则是先尝试获取独占锁,如果获取成功则继续进行,如果获取失败则进行排列,我们先来看看源代码</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">public final void acquire(int arg) &#123;</span><br><span class="line">    if (!tryAcquire(arg) &amp;&amp;</span><br><span class="line">        acquireQueued(addWaiter(Node.EXCLUSIVE), arg))</span><br><span class="line">        selfInterrupt();</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以看到acquire的实现方法非常简洁,首先尝试获取锁,如果成功则代码短路直接返回,如果尝试获取锁失败则调用acquireQueued方法将该线程加入阻塞队列,接下来查看一下addWaiter方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">private Node addWaiter(Node mode) &#123;</span><br><span class="line">       Node node = new Node(Thread.currentThread(), mode);</span><br><span class="line">       Node pred = tail;</span><br><span class="line">       if (pred != null) &#123;</span><br><span class="line">           //尾节点不为空即队列不为空</span><br><span class="line">           node.prev = pred;</span><br><span class="line">           //将该节点的前一个节点设置为尾结点,即将该节点插入队列的尾部</span><br><span class="line">           if (compareAndSetTail(pred, node)) &#123;</span><br><span class="line">               //用CAS的方式插入尾结点</span><br><span class="line">               pred.next = node;</span><br><span class="line">               return node;</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line">    	//如果尾节点为空,或者CAS插入尾结点失败,则执行enq方法初始化节点,并且自旋插入尾部`</span><br><span class="line">       enq(node);</span><br><span class="line">       return node;</span><br><span class="line">   &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以看到addWaiter方法中就是新建一个Node对象,并且将Node对象插入到FIFO的队列当中去并且返回当前的Node,</p>
+<p>下一步我们来看看acquireQueued方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">final boolean acquireQueued(final Node node, int arg) &#123;</span><br><span class="line">        boolean failed = true;</span><br><span class="line">        try &#123;</span><br><span class="line">            boolean interrupted = false;</span><br><span class="line">            for (;;) &#123;</span><br><span class="line">                //获取当前节点的前一个节点</span><br><span class="line">                final Node p = node.predecessor();</span><br><span class="line">                //如果上一个节点是头结点则再次尝试获取锁</span><br><span class="line">                if (p == head &amp;&amp; tryAcquire(arg)) &#123;</span><br><span class="line">                    //成功获取锁后将自己设置为头结点</span><br><span class="line">                    setHead(node);</span><br><span class="line">                    p.next = null; // help GC</span><br><span class="line">                    failed = false;</span><br><span class="line">                    return interrupted;</span><br><span class="line">                &#125;</span><br><span class="line">                //如果没有成功则修改状态并且进入休眠状态</span><br><span class="line">                if (shouldParkAfterFailedAcquire(p, node) &amp;&amp;</span><br><span class="line">                    parkAndCheckInterrupt())</span><br><span class="line">                    interrupted = true;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; finally &#123;</span><br><span class="line">            if (failed)</span><br><span class="line">                cancelAcquire(node);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以看到在acquireQueued方法中,是执行了一个死循环,自旋的来获取锁,首先获取传入node的上一个节点,如果上一个节点是头节点,则可以尝试获取锁,这里可能有同学不理解,为什么上一个节点是头结点时我们就可以尝试获取锁了,这里后续可以结合release方法来进行分析,如果获取锁成功则将自己的节点设置为头结点</p>
+<p>如果当前节点前一个节点不是头结点,或者获取锁失败的情况下,则先执行shouldParkAfterFailedAcquire方法,</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">private static boolean shouldParkAfterFailedAcquire(Node pred, Node node) &#123;</span><br><span class="line">        int ws = pred.waitStatus;</span><br><span class="line">        if (ws == Node.SIGNAL)</span><br><span class="line">           //如果状态正确直接返回</span><br><span class="line">            return true;</span><br><span class="line">        if (ws &gt; 0) &#123;</span><br><span class="line">           //如果大于0即状态为CANCEL状态,则将节点前移</span><br><span class="line">            do &#123;</span><br><span class="line">                node.prev = pred = pred.prev;</span><br><span class="line">            &#125; while (pred.waitStatus &gt; 0);</span><br><span class="line">            pred.next = node;</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">			//采用cas的方式将pred节点的状态置位SIGNAL           </span><br><span class="line">            compareAndSetWaitStatus(pred, ws, Node.SIGNAL);</span><br><span class="line">        &#125;</span><br><span class="line">        return false;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>该方法可以理解为,清除当前node节点之前的状态为Cancel即被取消排列的节点,如果当前节点前有状态为Cancel的节点,则把当前节点前移,并且重新自旋尝试,如果当前节点前节点的状态不为SIGNAL,则采用CAS的方式修改为SIGNAL,并且再次自旋</p>
+<p>如果当前线程之前的线程状态正确的话,就会继续往下执行parkAndCheckInterrupt方法,该方法源码就不贴了,底层是调用了LockSupport的park方法,即让当前线程阻塞,如果有其他线程唤醒当前线程的话,则会继续执行自旋获取锁的操作.</p>
+<p>至此,AQS中以独占锁的方式获取锁的流程已经完成,流程图如下</p>
+<p><a target="_blank" rel="noopener" href="https://image-xiaoazhai.oss-cn-hangzhou.aliyuncs.com/blog/acquire1.png"><img src="https://image-xiaoazhai.oss-cn-hangzhou.aliyuncs.com/blog/acquire1.png" alt="acquire1"></a></p>
+<p><a target="_blank" rel="noopener" href="https://image-xiaoazhai.oss-cn-hangzhou.aliyuncs.com/blog/acquire1.png">acquire1</a></p>
+<h3 id="tryRelease以及release方法"><a href="#tryRelease以及release方法" class="headerlink" title="tryRelease以及release方法"></a>tryRelease以及release方法</h3><p>tryRelease方法与tryAcquire方法一样需要开发者自行实现释放锁的逻辑,我们重点来看一下release方法的源码</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">public final boolean release(int arg) &#123;</span><br><span class="line">      if (tryRelease(arg)) &#123;</span><br><span class="line">          Node h = head;</span><br><span class="line">          if (h != null &amp;&amp; h.waitStatus != 0)</span><br><span class="line">              //头结点不为空且头节点状态不为已完成</span><br><span class="line">              unparkSuccessor(h);</span><br><span class="line">          return true;</span><br><span class="line">      &#125;</span><br><span class="line">      return false;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>可以看到进行了一波简单的判断来解锁,重点在于这个unparkSuccessor方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">private void unparkSuccessor(Node node) &#123;</span><br><span class="line">   </span><br><span class="line">    int ws = node.waitStatus;</span><br><span class="line">    if (ws &lt; 0)</span><br><span class="line">        compareAndSetWaitStatus(node, ws, 0);</span><br><span class="line">    Node s = node.next;</span><br><span class="line">    if (s == null || s.waitStatus &gt; 0) &#123;</span><br><span class="line">        //该节点下一节点为空或者下一节点的状态为已取消</span><br><span class="line">        s = null;</span><br><span class="line">        //循环查找队列中最靠前并且状态不为已取消的节点</span><br><span class="line">        for (Node t = tail; t != null &amp;&amp; t != node; t = t.prev)</span><br><span class="line">            if (t.waitStatus &lt;= 0)</span><br><span class="line">                s = t;</span><br><span class="line">    &#125;</span><br><span class="line">    if (s != null)</span><br><span class="line">        //唤醒选中的节点</span><br><span class="line">        LockSupport.unpark(s.thread);</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>简言之release方法还是较为简单,在tryRelease方法成功以后,唤醒队列中准备好的节点,这也解释了前面为什么在acquire方法中,前面节点中只要前一个节点是头结点即可尝试获取锁,因为在release方法中并不会移动节点,而是直接唤醒后续第一个可用节点.</p>
+<h3 id="tryAcquireShared以及acquireShared方法"><a href="#tryAcquireShared以及acquireShared方法" class="headerlink" title="tryAcquireShared以及acquireShared方法"></a>tryAcquireShared以及acquireShared方法</h3><p>首先要明确acquireShared以及acquire的区别 acquire的方法是以独占锁的方式来获取锁,而acquireShared则是以共享锁的方式来获取锁,</p>
+<p>tryAcquireShared方法依旧由开发者实现(try系列的基本都由开发者实现,后面不在赘述),我们来康康acquireShared方法的源码</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">public final void acquireShared(int arg) &#123;</span><br><span class="line">      if (tryAcquireShared(arg) &lt; 0)</span><br><span class="line">          doAcquireShared(arg);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>依旧是如此的简洁,首先要明确一个概念,与tryAcquire不同,tryAcquireShared返回的不是一个Boolean值而是一个int值,该值表示剩余的共享锁次数,如果返回一个负数,则表示获取锁失败,其他表示获取锁成功</p>
+<p>接下来分析doAcquireShared方法</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">private void doAcquireShared(int arg) &#123;</span><br><span class="line">    final Node node = addWaiter(Node.SHARED);</span><br><span class="line">    boolean failed = true;</span><br><span class="line">    try &#123;</span><br><span class="line">        boolean interrupted = false;</span><br><span class="line">        for (;;) &#123;</span><br><span class="line">            // 获取当前节点的前一个节点</span><br><span class="line">            final Node p = node.predecessor();</span><br><span class="line">            if (p == head) &#123;</span><br><span class="line">                //如果前一个节点是头结点,则尝试获取锁</span><br><span class="line">                int r = tryAcquireShared(arg);</span><br><span class="line">                if (r &gt;= 0) &#123;</span><br><span class="line">                    //如果获取锁成功则将自己设置为头结点,并且如果剩余锁数量,则唤醒后面的等待线程</span><br><span class="line">                    setHeadAndPropagate(node, r);</span><br><span class="line">                    p.next = null; // help GC</span><br><span class="line">                    if (interrupted)</span><br><span class="line">                        selfInterrupt();</span><br><span class="line">                    failed = false;</span><br><span class="line">                    return;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            //与acquireQueue的相同,校验前方节点状态以及阻塞线程</span><br><span class="line">            if (shouldParkAfterFailedAcquire(p, node) &amp;&amp;</span><br><span class="line">                parkAndCheckInterrupt())</span><br><span class="line">                interrupted = true;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; finally &#123;</span><br><span class="line">        if (failed)</span><br><span class="line">            cancelAcquire(node);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>其实通过对比可以发现doAcquireShared方法与acquireQueued方法大体上几乎是相同的.基本上都是选择用自旋的方式来尝试获取锁并且阻塞线程,最大的不同点就在于将该节点设置为头结点的方法setHeadAndPropagate方法,我们来深入查看一下源码</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">private void setHeadAndPropagate(Node node, int propagate) &#123;</span><br><span class="line">    Node h = head; // Record old head for check below</span><br><span class="line">    setHead(node);</span><br><span class="line">    if (propagate &gt; 0 || h == null || h.waitStatus &lt; 0 ||</span><br><span class="line">        (h = head) == null || h.waitStatus &lt; 0) &#123;</span><br><span class="line">        Node s = node.next;</span><br><span class="line">        if (s == null || s.isShared())</span><br><span class="line">            doReleaseShared();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>前两行很好理解,保存一下原来的头,后续进行的一系列判断可能比较难以理解,我们可以一个一个去理一下</p>
+<ul>
+<li><p>propagate&gt;0,通过前面传参我们可以看到propagate这个变量是tryAcquireShared返回的一个变量,这个变量代表着剩余共享锁的数量,而在调用setHeadAndPropagate已经判断了该变量&gt;&#x3D;0所以这里判断的实际上就是propagate是否等于0也就是是否还有剩余如果还有剩余的锁,直接短路后面的判断.进行释放锁的操作</p>
+</li>
+<li><p>后续的判断只看这个方法比较难以理解,这里我们贴一下doReleaseShared的源码来统一分析</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">private void doReleaseShared() &#123;</span><br><span class="line">    for (;;) &#123;</span><br><span class="line">        Node h = head;</span><br><span class="line">        if (h != null &amp;&amp; h != tail) &#123;</span><br><span class="line">            int ws = h.waitStatus;</span><br><span class="line">            if (ws == Node.SIGNAL) &#123;</span><br><span class="line">                //如果头结点的状态正确则尝试更新头结点的status值为0</span><br><span class="line">                if (!compareAndSetWaitStatus(h, Node.SIGNAL, 0))</span><br><span class="line">                    continue;            </span><br><span class="line">                unparkSuccessor(h);</span><br><span class="line">            &#125;</span><br><span class="line">            //如果头结点的值不为SIGNAL并且头结点的值为0说明已经有其他线程唤醒该头结点后面的节点</span><br><span class="line">           	//将该节点置位PROPAGATE-3 可以使后续的线程检测到该线程</span><br><span class="line">            else if (ws == 0 &amp;&amp;</span><br><span class="line">                     !compareAndSetWaitStatus(h, 0, Node.PROPAGATE))</span><br><span class="line">                continue;               </span><br><span class="line">        &#125;</span><br><span class="line">        if (h == head)</span><br><span class="line">            //如果头结点已经被唤醒过则不需要继续唤醒了</span><br><span class="line">            break;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+</li>
+<li><p>首先着重解释一下,为什么在propagate&#x3D;&#x3D;0的情况下还要做后续的判断而不是直接返回, <strong>propagate&#x3D;&#x3D;0只能代表当时tryAcquireShared后没有共享锁剩余，但之后的时刻很可能又有共享锁释放出来了。</strong></p>
+</li>
+<li><p>接下来我们来康康为什么需要进行后续的判断,首先分析<code>h == null || h.waitStatus &lt; 0</code> 这个判断,可以看到h这个变量是原来的头结点的值,h&#x3D;&#x3D;null是简单的防空指针判断,而根据doReleaseShared方法可以得知h.waitStatus在运行状态下会被改为0,而被置为负数的情况只有SIGNAL等待状态或者PROPAGATE状态而原来头结点的状态不可能为SIGNAL所以当h.waitStatus&lt;0的时候只有可能是其他的线程也调用了doReleaseShared方法,那么此时应该有可能还有空闲的线程可以使用,那么就去尝试调用doReleaseShared方法尝试唤醒后续的线程</p>
+</li>
+<li><p>继续看，如果propagate &gt; 0不成立，且h.waitStatus &lt; 0不成立，而第二个h.waitStatus &lt; 0成立。注意，第二个h.waitStatus &lt; 0里的h是新head（很可能就是入参node）。第一个h.waitStatus &lt; 0不成立很正常，因为它一般为0（考虑别的线程可能不会那么碰巧读到一个中间状态）。第二个h.waitStatus &lt; 0成立也很正常，因为只要新head不是队尾，那么新head的status肯定是SIGNAL,根据tryAcquireShared方法中可以看出当status等于SIGNAL时,将会尝试唤醒下一个线程,但是此时propagate的值为0大概率是获取锁失败再次阻塞,至于为什么作者要进行这种操作,请看作者的注释</p>
+</li>
+<li><blockquote>
+<p>The conservatism in both of these checks may cause unnecessary wake-ups, but only when there are multiple racing acquires&#x2F;releases, so most need signals now or soon anyway.</p>
+</blockquote>
+</li>
+<li><p>这个方法可能会导致不必要的唤醒,但只有在多个线程竞争acquire或者release的时候才会发生</p>
+</li>
+</ul>
+<p>总结:</p>
+<ul>
+<li>setHeadAndPropagate函数用来设置新head，并在一定情况下调用doReleaseShared。<br>调用doReleaseShared时，可能会造成acquire thread不必要的唤醒。个人认为，作者这么写，是为了防止一些未知的bug，毕竟当一个线程刚获得共享锁后，它的后继很可能也能获取。</li>
+<li>可以猜想，doReleaseShared的实现必须是无伤大雅的，因为有时调用它是没有必要的。</li>
+<li>PROPAGATE状态存在的意义是它的符号和SIGNAL相同，都是负数，所以能用&lt; 0检测到。因为线程刚被唤醒，但还没设置新head前，当前head的status是0，所以把0变成PROPAGATE，好让被唤醒线程可以检测到。</li>
+</ul>
+<p>到此为止AQS中的几个比较核心的方法以及线程阻塞和唤醒的工作流程都已经看过了一遍,对AQS的概念也有了一些了解,后续我们可以结合ReenTrantLock,ReentrantReadWriteLock,Semaphore的源码来了解AQS的实现过程</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Java%E5%B9%B6%E5%8F%91/" rel="tag"># Java并发</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/09/24/ReenTrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="prev" title="ReenTrantLock源码解析">
+      <i class="fa fa-chevron-left"></i> ReenTrantLock源码解析
+    </a></div>
+      <div class="post-nav-item">
+    <a href="/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/" rel="next" title="AQS浅析（2）">
+      AQS浅析（2） <i class="fa fa-chevron-right"></i>
+    </a></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AFAQS"><span class="nav-number">1.</span> <span class="nav-text">什么是AQS</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#AQS%E4%B8%AD%E7%9A%84%E9%87%8D%E8%A6%81%E5%8F%98%E9%87%8F%E4%B8%8E%E6%96%B9%E6%B3%95"><span class="nav-number">2.</span> <span class="nav-text">AQS中的重要变量与方法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%85%E9%83%A8%E7%B1%BBNode"><span class="nav-number">2.1.</span> <span class="nav-text">内部类Node</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#state%E5%8F%98%E9%87%8F%E5%8F%8A%E5%85%B6set%E6%96%B9%E6%B3%95get%E6%96%B9%E6%B3%95compareAndSetState%E6%96%B9%E6%B3%95"><span class="nav-number">2.2.</span> <span class="nav-text">state变量及其set方法get方法compareAndSetState方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#tryAcquire%E4%BB%A5%E5%8F%8Aacquire%E6%96%B9%E6%B3%95"><span class="nav-number">2.3.</span> <span class="nav-text">tryAcquire以及acquire方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#tryRelease%E4%BB%A5%E5%8F%8Arelease%E6%96%B9%E6%B3%95"><span class="nav-number">2.4.</span> <span class="nav-text">tryRelease以及release方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#tryAcquireShared%E4%BB%A5%E5%8F%8AacquireShared%E6%96%B9%E6%B3%95"><span class="nav-number">2.5.</span> <span class="nav-text">tryAcquireShared以及acquireShared方法</span></a></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">小阿宅</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">11</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">5</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">小阿宅</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+<script src="/live2dw/lib/L2Dwidget.min.js?094cbace49a39548bed64abff5988b05"></script><script>L2Dwidget.init({"model":{"jsonPath":"/live2dw/assets/hijiki.model.json"},"display":{"position":"left","width":150,"height":300},"mobile":{"show":false},"log":false,"pluginJsPath":"lib/","pluginModelPath":"assets/","pluginRootPath":"live2dw/","tagMode":false});</script></body>
+</html>
