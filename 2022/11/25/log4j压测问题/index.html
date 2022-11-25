@@ -20,28 +20,38 @@
     var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta property="og:type" content="website">
-<meta property="og:title" content="小阿宅的技术博客">
-<meta property="og:url" content="http://example.com/page/2/index.html">
+  <meta name="description" content="问题背景在对首页接口进行压测时，发现tps一直上不去，甚至维持在5左右，请求失败率高达90% 超过5并发机器会直接下线。需要讲tps提升到200。需要查看并优化问题">
+<meta property="og:type" content="article">
+<meta property="og:title" content="log4j压测问题">
+<meta property="og:url" content="http://example.com/2022/11/25/log4j%E5%8E%8B%E6%B5%8B%E9%97%AE%E9%A2%98/index.html">
 <meta property="og:site_name" content="小阿宅的技术博客">
+<meta property="og:description" content="问题背景在对首页接口进行压测时，发现tps一直上不去，甚至维持在5左右，请求失败率高达90% 超过5并发机器会直接下线。需要讲tps提升到200。需要查看并优化问题">
 <meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://p5.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424607964/9fc5/3ba0/faa4/aba66423d4f67820350eeabe2ccfc8b8.png">
+<meta property="og:image" content="https://p5.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424652868/a973/f21e/9db2/d56b43d281c9658e3d604001509401e1.png">
+<meta property="og:image" content="https://p5.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424674132/2e78/8f5e/77e8/1421cd30b76a621c61e013bd098b5ea5.png">
+<meta property="og:image" content="https://p6.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424693274/69a0/b737/018a/19d1ef328c067a50c66b936e886538ae.png">
+<meta property="article:published_time" content="2022-11-25T02:59:25.000Z">
+<meta property="article:modified_time" content="2022-11-25T03:00:25.758Z">
 <meta property="article:author" content="小阿宅">
+<meta property="article:tag" content="压测">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://p5.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424607964/9fc5/3ba0/faa4/aba66423d4f67820350eeabe2ccfc8b8.png">
 
-<link rel="canonical" href="http://example.com/page/2/">
+<link rel="canonical" href="http://example.com/2022/11/25/log4j%E5%8E%8B%E6%B5%8B%E9%97%AE%E9%A2%98/">
 
 
 <script id="page-configurations">
   // https://hexo.io/docs/variables.html
   CONFIG.page = {
     sidebar: "",
-    isHome : true,
-    isPost : false,
+    isHome : false,
+    isPost : true,
     lang   : 'zh-CN'
   };
 </script>
 
-  <title>小阿宅的技术博客</title>
+  <title>log4j压测问题 | 小阿宅的技术博客</title>
   
 
 
@@ -154,13 +164,14 @@
         <div class="content-wrap">
           
 
-          <div class="content index posts-expand">
+          <div class="content post posts-expand">
             
-      
+
+    
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2021/07/30/ReenTrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2022/11/25/log4j%E5%8E%8B%E6%B5%8B%E9%97%AE%E9%A2%98/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -172,10 +183,9 @@
       <meta itemprop="name" content="小阿宅的技术博客">
     </span>
       <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2021/07/30/ReenTrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" class="post-title-link" itemprop="url">ReenTrantLock源码解析</a>
-        </h2>
+        <h1 class="post-title" itemprop="name headline">
+          log4j压测问题
+        </h1>
 
         <div class="post-meta">
             <span class="post-meta-item">
@@ -184,7 +194,7 @@
               </span>
               <span class="post-meta-item-text">发表于</span>
 
-              <time title="创建时间：2021-07-30 10:46:20" itemprop="dateCreated datePublished" datetime="2021-07-30T10:46:20+08:00">2021-07-30</time>
+              <time title="创建时间：2022-11-25 10:59:25" itemprop="dateCreated datePublished" datetime="2022-11-25T10:59:25+08:00">2022-11-25</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -192,7 +202,7 @@
               </span>
               <span class="post-meta-item-text">分类于</span>
                 <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">源码解析</span></a>
+                  <a href="/categories/%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/" itemprop="url" rel="index"><span itemprop="name">性能优化</span></a>
                 </span>
             </span>
 
@@ -207,174 +217,55 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h2 id="ReenTrantLock是什么"><a href="#ReenTrantLock是什么" class="headerlink" title="ReenTrantLock是什么"></a>ReenTrantLock是什么</h2><p>ReenTrantLock是juc包下的一个经典的互斥锁,也是 <strong>可重入锁</strong>(即当前线程在已经获取改锁后重复执行获取锁操作时不会引起死锁,并且不需要执行获取锁的操作),ReenTrantLock是基于AQS来实现的(PS:注意是基于不是继承,看到网上有的同学会说发现ReentrantLock并没有继承AQS有所疑问),如果有对AQS不了解的同学可以查看我之前的文章<a target="_blank" rel="noopener" href="http://blog.xiaoazhai.com/aqs/">浅析AQS(1)—独占锁以及共享锁的实现</a>以及<a target="_blank" rel="noopener" href="http://blog.xiaoazhai.com/aqs2/">浅析AQS (二)–condition的实现</a>,</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2021/07/30/ReenTrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
+        <h1 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h1><p>在对首页接口进行压测时，发现tps一直上不去，甚至维持在5左右，请求失败率高达90% 超过5并发机器会直接下线。需要讲tps提升到200。需要查看并优化问题</p>
+<span id="more"></span>
+<h1 id="排查过程"><a href="#排查过程" class="headerlink" title="排查过程"></a>排查过程</h1><ol>
+<li>排查代码中发现，在获取某些上下文数据时，采用了多线程的方式进行获取，每一条请求大概会开启10条左右的线程去获取资源，但是该线程池最大只有50条线程。遂想监控下该线程池的使用情况</li>
+<li>在预发机器中，登陆arthas，使用dashboard命令查看线程的忙碌情况，查看后发现，最忙碌的线程并不是业务内创建的线程，而是log4j的线程和GC的线程，并且gc次数在猛增。一次压测3分钟，发生了10余次fullgc，刚开始以为是预发机器内存配置过小原因，从1g调整为2g后数据依旧如此。于是dump 了堆快照进行内存分析</li>
+<li><img src="https://p5.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424607964/9fc5/3ba0/faa4/aba66423d4f67820350eeabe2ccfc8b8.png"></li>
+<li>可以看到在堆内存中，一个叫RingBuffer的对象占据了几乎80%的内存，于是去查询该对象所在的包以及包管理<img src="https://p5.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424652868/a973/f21e/9db2/d56b43d281c9658e3d604001509401e1.png">结合监控线程的情况，可以断定，该内存是由于log4j所占用的，于是发现预发环境的线上homepage日志开关没有关，关闭日志开关后jvm恢复正常，压力测试也可以顺利完成。</li>
+</ol>
+<h1 id="原因分析"><a href="#原因分析" class="headerlink" title="原因分析"></a>原因分析</h1><p>根据ring buffer对象归属的类中发现，它是由disruptor使用的对象，首先聊一下disruptor是一个什么东西。</p>
+<p>Disruptor是英国外汇交易公司LMAX开发的一个高性能队列，研发的初衷是解决内存队列的延迟问题（在性能测试中发现竟然与I&#x2F;O操作处于同样的数量级）。基于Disruptor开发的系统单线程能支撑每秒600万订单。</p>
+<p>Disruptor 不同于kafka是解决业务间消息传递的队列。Disruptor是单纯为了解决内存数据队列而产生的。在JDK中主要对标的是ArrayBlockingQueue，在ArrayBlockingQueue中，主要是通过加锁的方式来防止多线程的并发问题，而Disruptor采用了CAS的方式，避免了加锁产生的开销。</p>
+<p>多个生产者的情况下，会遇到如何防止多个线程重复写同一个元素的问题。Disruptor的解决方法是，<strong>每个线程获取不同的一段数组空间进行操作</strong>。这个通过CAS很容易达到。只需要在分配元素的时候，通过CAS判断一下这段空间是否已经分配出去即可。如果已经被分配出去，则通过while循环的方式申请下一段内存空间使用</p>
+<p>在Disruptor中可以指定一些消费者waitStrategy来制定当无任务时 消费线程的情况<br><img src="https://p5.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424674132/2e78/8f5e/77e8/1421cd30b76a621c61e013bd098b5ea5.png"><br>对Disruptor就介绍这么多，有兴趣的可以查看<a target="_blank" rel="noopener" href="https://ldbmcs.gitbook.io/java/java-94/java-ji-he/java-ji-he-gao-xing-neng-dui-lie-disruptor-xiang-jie#4.-disruptor-de-she-ji-fang-an">该文章</a>查看详情；</p>
+<p>在Log4j中，我们采用异步方式进行磁盘写入，当打印日志时，Log4j先将日志通过Disruptor写入内存中，再由消费线程进行数据的落盘，而RingBuffer对象即是Disruptor框架中主要的数据存储对象。可以认定，上面所说的问题是内存数据写入过多，导致堆内存溢出</p>
+<p>在DisruptorUtil.RINGBUFFER_DEFAULT_SIZE 变量中 可以发现默认RingBuffersize 为 256* 1024<br>根据<a target="_blank" rel="noopener" href="https://issues.apache.org/jira/browse/LOG4J2-1340?attachmentOrder=asc">apache 的issues</a> <img src="https://p6.music.126.net/obj/wonDlsKUwrLClGjCm8Kx/19424693274/69a0/b737/018a/19d1ef328c067a50c66b936e886538ae.png">可以看出，这个size并不是指对象的大小，而是Ringbuffer的插槽大小，每一条日志对应一个插槽，即当每条日志都有10K时，频繁打印日志填满插槽 可能会在内存 最多填充 10 * 1024 * 246 KB的内存。 </p>
+<p>通过排查相关日志，发现有部分异常日志打印，单条日志近400KB</p>
+<h1 id="解决办法"><a href="#解决办法" class="headerlink" title="解决办法"></a>解决办法</h1><ol>
+<li>尽量不要打印整个对象。如果业务必须要打印整个对象，则控制打印日志的长度，不要打印太长的日志</li>
+<li>通过配置 修改 DisruptorUtil.RINGBUFFER_DEFAULT_SIZE 的配置值，修改插槽的大小，可以控制内存，当插槽满时，线程会阻塞，也可以配置丢弃日志，Log4j会丢弃INFO DEBUG TRACE级别的日志</li>
+</ol>
+
     </div>
 
     
     
     
+
       <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
+          <div class="post-tags">
+              <a href="/tags/%E5%8E%8B%E6%B5%8B/" rel="tag"># 压测</a>
+          </div>
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2021/03/09/myrpc/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="小阿宅">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="小阿宅的技术博客">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2021/03/09/myrpc/" class="post-title-link" itemprop="url">手把手教你撸一个RPC框架</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2021-03-09 10:44:15" itemprop="dateCreated datePublished" datetime="2021-03-09T10:44:15+08:00">2021-03-09</time>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="什么是RPC调用"><a href="#什么是RPC调用" class="headerlink" title="什么是RPC调用"></a>什么是RPC调用</h2><p>在动手之前，首先要明确rpc调用的概念，RPC（Remote Procedure Call）远程过程调用，简单的理解是一个节点请求另一个节点提供的服务，简单来说就是无感知的调用远程服务的方法</p>
-<p>举个例子，如果在A服务中实现了接口addCount(),进行计数+1，而B服务想调用A服务的这个接口，本地只需要通过函数指针来调用即可，而在两个服务中的调用就可以成为rpc调用</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2021/03/09/myrpc/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
         
-      
-    </div>
 
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
 
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2021/01/24/dubbo-exception/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="小阿宅">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="小阿宅的技术博客">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2021/01/24/dubbo-exception/" class="post-title-link" itemprop="url">如何优雅的解决Dubbo远程调用自定义异常</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-
-              <time title="创建时间：2021-01-24 10:36:08" itemprop="dateCreated datePublished" datetime="2021-01-24T10:36:08+08:00">2021-01-24</time>
-            </span>
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-folder"></i>
-              </span>
-              <span class="post-meta-item-text">分类于</span>
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/Dubbo/" itemprop="url" rel="index"><span itemprop="name">Dubbo</span></a>
-                </span>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h2><p>众所周知，在Dubbo远程调用中，如果远程服务出现了异常，那么不会将生产者产生的异常直接返回给消费者，而是重新包装了一个异常进行返回，而消费者只能得知触发的异常名称，在实际的业务开发中，这种设计方式是极为不合理的，无论是需要包装业务异常，或者需要触发报警，都无法得到更多准确的信息，对异常的定位也是十分困难的。所以我们进来就来优雅的解决这个问题。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2021/01/24/dubbo-exception/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
         
-      
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2022/11/25/%E8%AE%A4%E7%9F%A5%E5%A4%A9%E6%80%A7/" rel="prev" title="认知天性">
+      <i class="fa fa-chevron-left"></i> 认知天性
+    </a></div>
+      <div class="post-nav-item"></div>
     </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
       </footer>
+    
   </article>
   
   
   
-
-
-  
-  <nav class="pagination">
-    <a class="extend prev" rel="prev" href="/"><i class="fa fa-angle-left" aria-label="上一页"></i></a><a class="page-number" href="/">1</a><span class="page-number current">2</span>
-  </nav>
 
 
 
@@ -426,6 +317,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%97%AE%E9%A2%98%E8%83%8C%E6%99%AF"><span class="nav-number">1.</span> <span class="nav-text">问题背景</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E6%8E%92%E6%9F%A5%E8%BF%87%E7%A8%8B"><span class="nav-number">2.</span> <span class="nav-text">排查过程</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%8E%9F%E5%9B%A0%E5%88%86%E6%9E%90"><span class="nav-number">3.</span> <span class="nav-text">原因分析</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E8%A7%A3%E5%86%B3%E5%8A%9E%E6%B3%95"><span class="nav-number">4.</span> <span class="nav-text">解决办法</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
