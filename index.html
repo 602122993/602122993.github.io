@@ -314,140 +314,6 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="小阿宅">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="小阿宅的技术博客">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/" class="post-title-link" itemprop="url">AQS浅析（2）</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2022-09-24 10:47:44 / 修改时间：10:57:18" itemprop="dateCreated datePublished" datetime="2022-09-24T10:47:44+08:00">2022-09-24</time>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <p>在前一章节中,我们简单分析过aqs中加锁以及阻塞的流程,这一章我们来分析一下condition条件阻塞工具的实现</p>
-<h2 id="什么是condition"><a href="#什么是condition" class="headerlink" title="什么是condition"></a>什么是condition</h2><p>condition是作为条件阻塞器,通过调用await,signal和signalAll方法来阻塞和唤醒线程,可以横向对比的是Object对象的wait,notify以及notifyAll方法,值得注意的是,与Object的wait需要跟synchronized结合使用一样,condition也需要跟锁结合使用,比如ReenTrantLock中的newCondition方法就是创建一个全新的条件阻塞器,而调用await方法也需要通过lock进行加锁才可以正常使用.</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/avatar.gif">
-      <meta itemprop="name" content="小阿宅">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="小阿宅的技术博客">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          
-            <a href="/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/" class="post-title-link" itemprop="url">AQS浅析（1）</a>
-        </h2>
-
-        <div class="post-meta">
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="far fa-calendar"></i>
-              </span>
-              <span class="post-meta-item-text">发表于</span>
-              
-
-              <time title="创建时间：2022-09-24 10:47:15 / 修改时间：10:57:33" itemprop="dateCreated datePublished" datetime="2022-09-24T10:47:15+08:00">2022-09-24</time>
-            </span>
-
-          
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-          <h2 id="什么是AQS"><a href="#什么是AQS" class="headerlink" title="什么是AQS"></a>什么是AQS</h2><p>所谓AQS，指的是AbstractQueuedSynchronizer，它提供了一种实现阻塞锁和一系列依赖FIFO等待队列的同步器的框架，ReentrantLock、Semaphore、ReentrantReadWriteLock,CountDownLatch等并发类均是基于AQS来实现的，具体用法是通过继承AQS实现其模板方法，然后将子类作为同步组件的内部类。</p>
-<p>AQS具体的实现方式为通过维护一个state变量,通过调用对应实现的方法来操作state并且根据state的状态来判断是否需要加锁,接下来我们来阅读源码看看AQS中的具体实现</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2022/09/24/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-      <footer class="post-footer">
-        <div class="post-eof"></div>
-      </footer>
-  </article>
-  
-  
-  
-
-      
-  
-  
-  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/myrpc/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -652,6 +518,170 @@
           <!--noindex-->
             <div class="post-button">
               <a class="btn" href="/2022/01/11/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/12/06/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="小阿宅">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="小阿宅的技术博客">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/12/06/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/" class="post-title-link" itemprop="url">AQS浅析（2）</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-12-06 10:47:44" itemprop="dateCreated datePublished" datetime="2021-12-06T10:47:44+08:00">2021-12-06</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-11-25 10:26:48" itemprop="dateModified" datetime="2022-11-25T10:26:48+08:00">2022-11-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">源码解析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <p>在前一章节中,我们简单分析过aqs中加锁以及阻塞的流程,这一章我们来分析一下condition条件阻塞工具的实现</p>
+<h2 id="什么是condition"><a href="#什么是condition" class="headerlink" title="什么是condition"></a>什么是condition</h2><p>condition是作为条件阻塞器,通过调用await,signal和signalAll方法来阻塞和唤醒线程,可以横向对比的是Object对象的wait,notify以及notifyAll方法,值得注意的是,与Object的wait需要跟synchronized结合使用一样,condition也需要跟锁结合使用,比如ReenTrantLock中的newCondition方法就是创建一个全新的条件阻塞器,而调用await方法也需要通过lock进行加锁才可以正常使用.</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2021/12/06/AQS%E6%B5%85%E6%9E%90%EF%BC%882%EF%BC%89/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/12/03/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="小阿宅">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="小阿宅的技术博客">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          
+            <a href="/2021/12/03/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/" class="post-title-link" itemprop="url">AQS浅析（1）</a>
+        </h2>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2021-12-03 10:47:15" itemprop="dateCreated datePublished" datetime="2021-12-03T10:47:15+08:00">2021-12-03</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-11-25 10:26:47" itemprop="dateModified" datetime="2022-11-25T10:26:47+08:00">2022-11-25</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">源码解析</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h2 id="什么是AQS"><a href="#什么是AQS" class="headerlink" title="什么是AQS"></a>什么是AQS</h2><p>所谓AQS，指的是AbstractQueuedSynchronizer，它提供了一种实现阻塞锁和一系列依赖FIFO等待队列的同步器的框架，ReentrantLock、Semaphore、ReentrantReadWriteLock,CountDownLatch等并发类均是基于AQS来实现的，具体用法是通过继承AQS实现其模板方法，然后将子类作为同步组件的内部类。</p>
+<p>AQS具体的实现方式为通过维护一个state变量,通过调用对应实现的方法来操作state并且根据state的状态来判断是否需要加锁,接下来我们来阅读源码看看AQS中的具体实现</p>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2021/12/03/AQS%E6%B5%85%E6%9E%90%EF%BC%881%EF%BC%89/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
