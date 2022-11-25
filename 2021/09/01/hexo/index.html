@@ -23,7 +23,7 @@
   <meta name="description" content="费劲巴力我的博客总算是搭建起来了,本来想着自己动手写一个博客网站来的,但是能力有限,写出来的也没有人家模板的好看,不如用hexo一站式服务搭建自己的博客,所以第一篇文章就来记录如何搭建这样的一个博客.">
 <meta property="og:type" content="article">
 <meta property="og:title" content="如何正确的使用hexo+github+next部署自己的博客">
-<meta property="og:url" content="http://example.com/2022/09/24/hexo/index.html">
+<meta property="og:url" content="http://example.com/2021/09/01/hexo/index.html">
 <meta property="og:site_name" content="小阿宅的技术博客">
 <meta property="og:description" content="费劲巴力我的博客总算是搭建起来了,本来想着自己动手写一个博客网站来的,但是能力有限,写出来的也没有人家模板的好看,不如用hexo一站式服务搭建自己的博客,所以第一篇文章就来记录如何搭建这样的一个博客.">
 <meta property="og:locale" content="zh_CN">
@@ -34,13 +34,13 @@
 <meta property="og:image" content="http://images.xiaoazhai.com/blog/1571119255(1).jpg">
 <meta property="og:image" content="http://images.xiaoazhai.com/blog/1571119357(1).jpg">
 <meta property="og:image" content="http://images.xiaoazhai.com/blog/1571119691(1).jpg">
-<meta property="article:published_time" content="2022-09-24T02:53:07.000Z">
-<meta property="article:modified_time" content="2022-09-24T02:56:13.875Z">
+<meta property="article:published_time" content="2021-09-01T02:53:07.000Z">
+<meta property="article:modified_time" content="2022-11-25T02:22:22.980Z">
 <meta property="article:author" content="小阿宅">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:image" content="http://images.xiaoazhai.com/blog/1571107385.jpg">
 
-<link rel="canonical" href="http://example.com/2022/09/24/hexo/">
+<link rel="canonical" href="http://example.com/2021/09/01/hexo/">
 
 
 <script id="page-configurations">
@@ -173,7 +173,7 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
-    <link itemprop="mainEntityOfPage" href="http://example.com/2022/09/24/hexo/">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2021/09/01/hexo/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="image" content="/images/avatar.gif">
@@ -195,10 +195,16 @@
                 <i class="far fa-calendar"></i>
               </span>
               <span class="post-meta-item-text">发表于</span>
-              
 
-              <time title="创建时间：2022-09-24 10:53:07 / 修改时间：10:56:13" itemprop="dateCreated datePublished" datetime="2022-09-24T10:53:07+08:00">2022-09-24</time>
+              <time title="创建时间：2021-09-01 10:53:07" itemprop="dateCreated datePublished" datetime="2021-09-01T10:53:07+08:00">2021-09-01</time>
             </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="far fa-calendar-check"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2022-11-25 10:22:22" itemprop="dateModified" datetime="2022-11-25T10:22:22+08:00">2022-11-25</time>
+              </span>
 
           
 
@@ -301,12 +307,12 @@
 <li><p>用编辑器你打开你的blog项目,推荐vscode,提供了markdown编辑插件,而且可以在编辑器内使用命令行,方便的很(vscode天下第一)</p>
 </li>
 <li><p>修改_config.yml文件的一些配置(冒号之后都是有一个半角空格的)</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">deploy:</span><br><span class="line">  type: git</span><br><span class="line">  repo: https://github.com/YourgithubName/YourgithubName.github.io.git</span><br><span class="line">  branch: master</span><br><span class="line">Copy</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">deploy:</span><br><span class="line">  type: git</span><br><span class="line">  repo: https://github.com/YourgithubName/YourgithubName.github.io.git</span><br><span class="line">  branch: master</span><br><span class="line"></span><br></pre></td></tr></table></figure>
 </li>
 <li><p>先安装一波git部署的工具包<code>npm install hexo-deployer-git --save</code></p>
 </li>
 <li><p>输入命令</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">hexo clean //清理缓存</span><br><span class="line">hexo g     //编译代码</span><br><span class="line">hexo d     //执行部署</span><br><span class="line">Copy</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">hexo clean //清理缓存</span><br><span class="line">hexo g     //编译代码</span><br><span class="line">hexo d     //执行部署</span><br><span class="line"></span><br></pre></td></tr></table></figure>
 </li>
 <li><p>在浏览器输入<code>http://yourgithubname.github.io</code> 就可以看到你的博客拉,是不是很兴奋</p>
 </li>
@@ -328,12 +334,12 @@
         
     <div class="post-nav">
       <div class="post-nav-item">
-    <a href="/2022/09/24/countdownlatch/" rel="prev" title="CountdownLatch和CyclicBarrier的区别与使用场景">
-      <i class="fa fa-chevron-left"></i> CountdownLatch和CyclicBarrier的区别与使用场景
+    <a href="/2021/07/30/ReenTrantLock%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" rel="prev" title="ReenTrantLock源码解析">
+      <i class="fa fa-chevron-left"></i> ReenTrantLock源码解析
     </a></div>
       <div class="post-nav-item">
-    <a href="/2022/09/24/%E5%BF%83%E7%90%86%E7%84%A6%E8%99%91/" rel="next" title="如何克服心理焦虑">
-      如何克服心理焦虑 <i class="fa fa-chevron-right"></i>
+    <a href="/2021/10/04/Spring%E7%AD%96%E7%95%A5%E6%A8%A1%E5%BC%8Fifelse/" rel="next" title="利用SpringBean管理来实现策略模式用以消灭项目中的if-else">
+      利用SpringBean管理来实现策略模式用以消灭项目中的if-else <i class="fa fa-chevron-right"></i>
     </a></div>
     </div>
       </footer>
