@@ -20,15 +20,21 @@
     var CONFIG = {"hostname":"example.com","root":"/","scheme":"Gemini","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
   </script>
 
-  <meta property="og:type" content="article">
+  <meta name="description" content="在最近发布的JDK 21 LTS版本中，加入了许多新特性。其中对我们开发人员影响最大的应该是分代ZGC以及Java的虚拟线程。在本篇文章中，我将带大家深入了解Java虚拟线程的原理、如何使用、使用的注意事项以及其他相似技术的差别。">
+<meta property="og:type" content="article">
 <meta property="og:title" content="虚拟线程">
 <meta property="og:url" content="http://example.com/2023/10/12/%E8%99%9A%E6%8B%9F%E7%BA%BF%E7%A8%8B/index.html">
 <meta property="og:site_name" content="小阿宅的技术博客">
+<meta property="og:description" content="在最近发布的JDK 21 LTS版本中，加入了许多新特性。其中对我们开发人员影响最大的应该是分代ZGC以及Java的虚拟线程。在本篇文章中，我将带大家深入了解Java虚拟线程的原理、如何使用、使用的注意事项以及其他相似技术的差别。">
 <meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://prod-files-secure.s3.us-west-2.amazonaws.com/be0ba042-6f85-4051-86aa-b10905691a87/faab5e7b-7b4c-4422-b15c-07b31938064a/Untitled.png">
+<meta property="og:image" content="https://prod-files-secure.s3.us-west-2.amazonaws.com/be0ba042-6f85-4051-86aa-b10905691a87/a0364f6a-2c3f-4f1e-89ce-3403018e9988/Untitled.png">
 <meta property="article:published_time" content="2023-10-12T09:01:35.000Z">
-<meta property="article:modified_time" content="2023-10-12T09:01:35.740Z">
+<meta property="article:modified_time" content="2023-10-12T09:53:11.102Z">
 <meta property="article:author" content="小阿宅">
+<meta property="article:tag" content="Java并发">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://prod-files-secure.s3.us-west-2.amazonaws.com/be0ba042-6f85-4051-86aa-b10905691a87/faab5e7b-7b4c-4422-b15c-07b31938064a/Untitled.png">
 
 <link rel="canonical" href="http://example.com/2023/10/12/%E8%99%9A%E6%8B%9F%E7%BA%BF%E7%A8%8B/">
 
@@ -188,6 +194,15 @@
 
               <time title="创建时间：2023-10-12 17:01:35" itemprop="dateCreated datePublished" datetime="2023-10-12T17:01:35+08:00">2023-10-12</time>
             </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/%E6%BA%90%E7%A0%81%E8%A7%A3%E6%9E%90/" itemprop="url" rel="index"><span itemprop="name">源码解析</span></a>
+                </span>
+            </span>
 
           
 
@@ -200,7 +215,43 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        
+        <p>在最近发布的JDK 21 LTS版本中，加入了许多新特性。其中对我们开发人员影响最大的应该是分代ZGC以及Java的虚拟线程。在本篇文章中，我将带大家深入了解Java虚拟线程的原理、如何使用、使用的注意事项以及其他相似技术的差别。</p>
+<span id="more"></span>
+<h2 id="什么是虚拟线程"><a href="#什么是虚拟线程" class="headerlink" title="什么是虚拟线程"></a>什么是虚拟线程</h2><p>首先，我们需要了解什么是虚拟线程。</p>
+<p>在平时的开发过程中，我们所使用的多线程往往意味着平台线程。平台线程代表着JVM直接与操作系统交互，创建了一个一个的线程，并且在JVM中还要为这个线程单独开辟内存使用。一般在JVM中创建一个平台线程，开销大约在1M左右。为了避免创建线程和销毁线程带来的巨大开销，我们通常选择使用池化技术来维护一些活跃的线程。</p>
+<p>此外，线程的数量也需要严格控制。如果在一个线程池中维护成千上百个线程，往往效率并不尽如人意。因为线程在切换时涉及到CPU上下文的切换，如果线程数过多，反而会降低执行效率。因此，如何控制线程池的大小也是考验工程师经验的难点。</p>
+<p>平台线程与系统线程关系如下</p>
+<p><img src="https://prod-files-secure.s3.us-west-2.amazonaws.com/be0ba042-6f85-4051-86aa-b10905691a87/faab5e7b-7b4c-4422-b15c-07b31938064a/Untitled.png" alt="Untitled"></p>
+<p>为了解决这个问题，虚拟线程应运而生，虚拟线程并不是Java的首创，它在很多其他语言中被称为协程、纤程、绿色线程、用户态线程等，虚拟线程相对平台线程，并不直接与操作系统交互，虚拟线程的数据是维护在堆内存中，由JVM创建的平台线程来持有，由平台线程来决定什么时候来切换虚拟线程，大概图如下</p>
+<p><img src="https://prod-files-secure.s3.us-west-2.amazonaws.com/be0ba042-6f85-4051-86aa-b10905691a87/a0364f6a-2c3f-4f1e-89ce-3403018e9988/Untitled.png" alt="Untitled"></p>
+<p>虽然图中只画了几个虚拟线程，但是在实际使用中，我们可以创建成百上千的虚拟线程而不用担心资源消耗的问题</p>
+<p>首先原因在于虚拟线程的开销极其廉价，一个虚拟线程可能才使用几百字节，所以几遍创建成百上千也不会消耗太多内存资源</p>
+<p>其次虽然我们有极多的虚拟线程，但是实际上执行线程依旧只有几个平台线程，所以在线程使用中不会由于CPU上下文的切换导致的额外开销。</p>
+<h2 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h2><p>接下来我们用代码来实践一下虚拟线程，JDK的工程师为了方便我们快速进行虚拟线程的升级，可以使用Thread来快速创建虚拟线程</p>
+<figure class="highlight jsx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">Thread</span> vt = <span class="title class_">Thread</span>.<span class="title function_">startVirtualThread</span>(() -&gt; &#123;</span><br><span class="line">    <span class="title class_">Thread</span>.<span class="title function_">sleep</span>(<span class="number">1000</span>);</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<p>这种方法创建的虚拟线程会立刻启动，那么如果我们想创建一个需要手动启动的虚拟线程，可以参考如下的方式</p>
+<figure class="highlight jsx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建VirtualThread</span></span><br><span class="line"><span class="title class_">Thread</span>.<span class="title function_">ofVirtual</span>().<span class="title function_">unstarted</span>(() -&gt; &#123;</span><br><span class="line">    <span class="title class_">Thread</span>.<span class="title function_">sleep</span>(<span class="number">1000</span>);</span><br><span class="line">&#125;);</span><br><span class="line"><span class="comment">// 运行</span></span><br><span class="line">vt.<span class="title function_">start</span>();</span><br></pre></td></tr></table></figure>
+
+<p>还可以创建虚拟线程的工厂来使用</p>
+<figure class="highlight jsx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 创建ThreadFactory:</span></span><br><span class="line"><span class="title class_">ThreadFactory</span> tf = <span class="title class_">Thread</span>.<span class="title function_">ofVirtual</span>().<span class="title function_">factory</span>();</span><br><span class="line"><span class="comment">// 创建VirtualThread:</span></span><br><span class="line"><span class="title class_">Thread</span> vt = tf.<span class="title function_">newThread</span>(() -&gt; &#123;</span><br><span class="line">    <span class="title class_">Thread</span>.<span class="title function_">sleep</span>(<span class="number">1000</span>);</span><br><span class="line">&#125;);</span><br><span class="line"><span class="comment">// 运行:</span></span><br><span class="line">vt.<span class="title function_">start</span>();</span><br></pre></td></tr></table></figure>
+
+<p>我们将线程的上下文信息打印出来看看</p>
+<figure class="highlight jsx"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">VirtualThread</span>[#<span class="number">21</span>]/runnable@<span class="title class_">ForkJoinPool</span>-<span class="number">1</span>-worker-<span class="number">1</span></span><br></pre></td></tr></table></figure>
+
+<p>从这个打印内容可以大概看出，虚拟线程底层采用了ForkJoinPool来维护平台线程，而后面的worker-1则代表具体的平台线程的名称，前面的#21代表当前虚拟线程的数量，那么可能有同学就会问了 那如果我全局有成千上百个虚拟线程，我怎么知道是哪块业务的线程除了问题呢。</p>
+<p>我们可以对线程工厂进行命名，使用该线程工厂命名后，在线程上下文中就会打印对应虚拟线程工厂的信息。</p>
+<figure class="highlight jsx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">ThreadFactory</span> factory = <span class="title class_">Thread</span>.<span class="title function_">ofVirtual</span>().<span class="title function_">name</span>(<span class="string">&quot;myVirtual&quot;</span>).<span class="title function_">factory</span>();</span><br><span class="line">        <span class="title function_">try</span>(<span class="params">ExecutorService executor = Executors.newThreadPerTaskExecutor(factory)</span>) &#123;</span><br><span class="line">            <span class="keyword">for</span> (int i=<span class="number">0</span>; i&lt;<span class="number">100000</span>; i++) &#123;</span><br><span class="line">                <span class="comment">// 也可以直接传入Runnable或Callable:</span></span><br><span class="line">                executor.<span class="title function_">submit</span>(() -&gt; &#123;</span><br><span class="line">                    <span class="title class_">System</span>.<span class="property">out</span>.<span class="title function_">println</span>(<span class="title class_">Thread</span>.<span class="title function_">currentThread</span>());</span><br><span class="line">                    <span class="title class_">Thread</span>.<span class="title function_">sleep</span>(<span class="number">1000</span>);</span><br><span class="line">                    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">                &#125;);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight jsx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="title class_">VirtualThread</span>[#<span class="number">23</span>,myVirtual]/runnable@<span class="title class_">ForkJoinPool</span>-<span class="number">1</span>-worker-<span class="number">2</span></span><br><span class="line"><span class="title class_">VirtualThread</span>[#<span class="number">275</span>,myVirtual]/runnable@<span class="title class_">ForkJoinPool</span>-<span class="number">1</span>-worker-<span class="number">7</span></span><br><span class="line"><span class="title class_">VirtualThread</span>[#<span class="number">282</span>,myVirtual]/runnable@<span class="title class_">ForkJoinPool</span>-<span class="number">1</span>-worker-<span class="number">5</span></span><br><span class="line"><span class="title class_">VirtualThread</span>[#<span class="number">285</span>,myVirtual]/runnable@<span class="title class_">ForkJoinPool</span>-<span class="number">1</span>-worker-<span class="number">4</span></span><br><span class="line"><span class="title class_">VirtualThread</span>[#<span class="number">288</span>,myVirtual]/runnable@<span class="title class_">ForkJoinPool</span>-<span class="number">1</span>-worker-<span class="number">3</span></span><br><span class="line"><span class="title class_">VirtualThread</span>[#<span class="number">234</span>,myVirtual]/runnable@<span class="title class_">ForkJoinPool</span>-<span class="number">1</span>-worker-<span class="number">10</span></span><br></pre></td></tr></table></figure>
+
+<p>从日志中不难看出，我们已经成功在线程上下文标记了这一块虚拟线程属于哪个工厂，并且通过信息后缀中的worker-10可以看出底层的ForkJoinPool已经创建了10个平台线程来操作虚拟线程，因为我这台电脑是10核的，所以底层的线程池会创建与核心数相等的线程来操作虚拟线程，在我的实践中发现，无论你创建多少调度器，所有底层的虚拟线程都是由同一个平台线程池来操控的。</p>
+<p>而且在示例代码中，我创建了十万个虚拟线程，如果我是用的是平台线程，且不说执行效率，但是内存分配就已经使项目OOM了。</p>
+<h2 id="注意事项"><a href="#注意事项" class="headerlink" title="注意事项"></a>注意事项</h2><h3 id="ThreadLocal支持"><a href="#ThreadLocal支持" class="headerlink" title="ThreadLocal支持"></a>ThreadLocal支持</h3><p>有同学可能会问，在虚拟线程中能否使用ThreadLocal对象呢？官方给出的答案是，能够使用但不建议。在过去，我们在维护线程池时，线程的数量是固定的且相对较少。我们通过手动清理的方式来重用ThreadLocal对象。然而，在使用虚拟线程后，我们不再关注具体的线程数，这导致ThreadLocal对象的数量无法控制，从而占用了额外的内存。需要注意的是，虚拟线程与平台线程不共享同一个ThreadLocal。</p>
+<h3 id="永远不要池化虚拟线程"><a href="#永远不要池化虚拟线程" class="headerlink" title="永远不要池化虚拟线程"></a>永远不要池化虚拟线程</h3><p>之前我们提到过，虚拟线程的开销非常低，每个虚拟线程可能只消耗几百字节的内存。这意味着我们不需要为虚拟线程创建所谓的线程池。相应地，根据我们之前的编码习惯，如果某个功能只能接受20个并发请求，我们可能会创建一个固定大小为20的线程池来进行限流。然而，如果使用虚拟线程，我们应尽量改用类似信号量的方式来实现。</p>
+<h2 id="协程、IO多路复用与虚拟线程的关系"><a href="#协程、IO多路复用与虚拟线程的关系" class="headerlink" title="协程、IO多路复用与虚拟线程的关系"></a>协程、IO多路复用与虚拟线程的关系</h2><p>有很多同学可能对对这几个概念相对比较混淆，我们可以来梳理下这几个概念之间的异同，首先协程与虚拟线程从概念上是相同的，只是不同语言之间的实现方式是不同的，都是在用户态线程中维护多个子线程进行切换，只是如Python语言可能需要手动去唤起协程，而Java中的虚拟线程都是交由JVM调度的。</p>
+<p>而IO多路复用，我们以Netty为例，它内部使用了IO多路复用技术来管理和处理大量的并发IO操作。Netty的IO多路复用机制可以有效地管理和调度多个连接，提高系统的吞吐量和性能。它基于事件驱动的设计模型，通过选择器（Selector）来同时监控多个IO通道的状态，当有IO事件就绪时，通过回调机制来进行处理。而虚拟线程通常用于解决IO阻塞的问题，通过在IO操作或时间等待点上主动释放执行权，来实现更好的并发性能。虚拟线程可以减少线程切换的开销，但它仍然是在应用程序内部执行的，并不能直接替代IO多路复用来管理和处理大量的并发IO操作。可以说术业有专攻，但是虚拟线程确实会对多IO操作有效率提升的。</p>
+
     </div>
 
     
@@ -208,6 +259,9 @@
     
 
       <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Java%E5%B9%B6%E5%8F%91/" rel="tag"># Java并发</a>
+          </div>
 
         
 
@@ -277,6 +331,7 @@
 
       <!--noindex-->
       <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BB%80%E4%B9%88%E6%98%AF%E8%99%9A%E6%8B%9F%E7%BA%BF%E7%A8%8B"><span class="nav-number">1.</span> <span class="nav-text">什么是虚拟线程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BD%BF%E7%94%A8"><span class="nav-number">2.</span> <span class="nav-text">使用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="nav-number">3.</span> <span class="nav-text">注意事项</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#ThreadLocal%E6%94%AF%E6%8C%81"><span class="nav-number">3.1.</span> <span class="nav-text">ThreadLocal支持</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%B0%B8%E8%BF%9C%E4%B8%8D%E8%A6%81%E6%B1%A0%E5%8C%96%E8%99%9A%E6%8B%9F%E7%BA%BF%E7%A8%8B"><span class="nav-number">3.2.</span> <span class="nav-text">永远不要池化虚拟线程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8D%8F%E7%A8%8B%E3%80%81IO%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8%E4%B8%8E%E8%99%9A%E6%8B%9F%E7%BA%BF%E7%A8%8B%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="nav-number">4.</span> <span class="nav-text">协程、IO多路复用与虚拟线程的关系</span></a></li></ol></div>
       </div>
       <!--/noindex-->
 
